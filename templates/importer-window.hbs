@@ -1,0 +1,35 @@
+<div class="sii-shell">
+  <section class="sii-editor">
+    <textarea name="input" class="sii-input" placeholder="{{localize 'shadowrun-items-importer.placeholder'}}"></textarea>
+  </section>
+
+  <footer class="sii-footer">
+    <div class="sii-field-group">
+      <label class="sii-label" for="sii-folder">{{localize "shadowrun-items-importer.label.folder"}}</label>
+      <select id="sii-folder" name="folderId">
+        {{#each folders}}
+          <option value="{{this.id}}" {{#if this.selected}}selected{{/if}}>{{this.name}}</option>
+        {{/each}}
+      </select>
+    </div>
+
+    <div class="sii-field-group">
+      <label class="sii-label" for="sii-item-type">{{localize "shadowrun-items-importer.label.type"}}</label>
+      <select id="sii-item-type" name="itemType">
+        {{#each itemTypes}}
+          <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+        {{/each}}
+      </select>
+    </div>
+
+    <div class="sii-actions">
+      <button type="button" class="sii-secondary" data-action="refreshTypes">
+        <i class="fa-solid fa-rotate"></i>
+      </button>
+      <button type="button" class="sii-primary" data-action="importItems">
+        <i class="fa-solid fa-file-import"></i>
+        {{localize "shadowrun-items-importer.button.import"}}
+      </button>
+    </div>
+  </footer>
+</div>
