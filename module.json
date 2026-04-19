@@ -1,0 +1,51 @@
+{
+  "id": "shadowrun-items-importer",
+  "title": "Shadowrun Items Importer",
+  "description": "Foundry VTT importer for Shadowrun 6th Edition item statblocks.",
+  "version": "#{VERSION}#",
+  "library": false,
+  "compatibility": {
+    "minimum": "13",
+    "verified": "13",
+    "maximum": "13"
+  },
+  "authors": [
+    {
+      "name": "Luca Gioppo",
+      "url": "https://github.com/gioppoluca",
+      "discord": "gioppoluca"
+    }
+  ],
+  "relationships": {
+    "systems": [
+      {
+        "id": "shadowrun6-eden",
+        "type": "system",
+        "compatibility": {
+          "verified": "3.3.9"
+        }
+      }
+    ]
+  },
+  "esmodules": [
+    "scripts/module.js"
+  ],
+  "scripts": [
+    "libs/ohm.js"
+  ],
+  "styles": [
+    "styles/shadowrun-items-importer.css"
+  ],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "languages/en.json"
+    }
+  ],
+  "url": "#{URL}#",
+  "manifest": "#{MANIFEST}#",
+  "download": "#{DOWNLOAD}#",
+  "license": "LICENSE",
+  "readme": "README.md"
+}
