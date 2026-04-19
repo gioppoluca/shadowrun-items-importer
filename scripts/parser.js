@@ -1,25 +1,8 @@
 import { SII } from "./constants.js";
 import { ShadowrunItemsImporterUtils as Utils } from "./utils.js";
-import { GenericShadowrunItemParser } from "./parsers/items/generic-item-parser.js";
 import { QualityItemParser } from "./parsers/items/quality-item-parser.js";
 
 export class ShadowrunItemsImporterParser {
-  static ensureOhm() {
-    const Ohm = Utils.getOhm();
-    if (!Ohm) {
-      ui.notifications?.error(game.i18n.localize(`${SII.MODULE_ID}.notifications.ohmMissing`));
-      return null;
-    }
-    return Ohm;
-  }
-
-  static createItemParser({ text, type, folderId, Ohm }) {
-    switch (type) {
-      default:
-        return new GenericShadowrunItemParser({ text, type, folderId, Ohm });
-    }
-  }
-
   parseInput(rawText, folderId, itemType) {
     if (!globalThis.ohm) {
       throw new Error("Ohm.js is required but was not found on globalThis.ohm");

@@ -75,19 +75,5 @@ export class ShadowrunItemsImporterUtils {
       .sort((a, b) => a.label.localeCompare(b.label));
   }
 
-  /**
- * Main helper used by the app.
- * Prefer SR6 config-based types, fallback to generic discovery.
- */
-  /*
-  static getItemTypeOptions() {
-    const sr6Options = this.getSr6ItemTypeOptions();
-    if (sr6Options.length) return sr6Options;
 
-    return this.getAvailableItemTypes().map((type) => ({
-      value: type,
-      label: this.formatTypeLabel(type)
-    }));
-  }
-    */
 }
