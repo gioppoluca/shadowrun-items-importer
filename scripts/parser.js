@@ -1,6 +1,7 @@
 import { SII } from "./constants.js";
 import { ShadowrunItemsImporterUtils as Utils } from "./utils.js";
 import { QualityItemParser } from "./parsers/items/quality-item-parser.js";
+import { MetamagicItemParser } from "./parsers/items/metamagic-item-parser.js";
 
 export class ShadowrunItemsImporterParser {
   parseInput(rawText, folderId, itemType) {
@@ -15,7 +16,9 @@ export class ShadowrunItemsImporterParser {
       case "quality":
         parser = new QualityItemParser({ text: rawText, type: itemType, folderId });
         break;
-
+      case "metamagic":
+        parser = new MetamagicItemParser({ text: rawText, type: itemType, folderId });
+        break;
       default:
         ui.notifications?.warn(`${game.i18n.localize(CONFIG.Item.typeLabels[itemType])} is not supported yet.`);
         return null;
