@@ -24,6 +24,8 @@ The scaffold is aimed at the active `shadowrun6-eden` Foundry system.
 
 **Qualities**: as from Core and Compendium format
 **Matamagic**: as for Core
+**Spells**: as for Core
+**Gear - Chemicals - Toxin**: as for Core
 
 
 ## Support
