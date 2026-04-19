@@ -11,7 +11,7 @@
   "shadowrun-items-importer.label.ready": "ready",
   "shadowrun-items-importer.label.missing": "missing",
   "shadowrun-items-importer.label.none": "None",
-  "shadowrun-items-importer.placeholder": "Paste a Shadowrun 6e item block here.\n\nPlanned use:\n- weapon blocks\n- armor blocks\n- gear blocks\n- cyberware / bioware\n- magical items and other supported entries\n\nThis first version only provides the importer window scaffold.",
+  "shadowrun-items-importer.placeholder": "Paste a Shadowrun 6e item block here.\n\nPlanned use:\n- weapon blocks\n- armor blocks\n- gear blocks\n- cyberware / bioware\n- magical items and other supported entries\n\nThis version only provides qualities, metamagic and toxins.",
   "shadowrun-items-importer.hint.window": "Initial scaffold ready. Real Ohm.js parsing is the next step.",
   "shadowrun-items-importer.notifications.systemMismatch": "Shadowrun Items Importer is intended for the Shadowrun 6th Edition system.",
   "shadowrun-items-importer.notifications.noItemTypes": "No item types were discovered from the active system.",
