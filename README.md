@@ -23,6 +23,7 @@ The scaffold is aimed at the active `shadowrun6-eden` Foundry system.
 ## Object parsed
 
 **Qualities**: as from Core and Compendium format
+**Matamagic**: as for Core
 
 
 ## Support
