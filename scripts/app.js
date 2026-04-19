@@ -111,10 +111,12 @@ export class ShadowrunItemsImporterApp extends HandlebarsApplicationMixin(Applic
       const created = await this.createItemDocument(parsedObject, folderId);
 
       ui.notifications?.info(`Created item: ${created.name}`);
+      await created.sheet.render(true);
       this.close();
     } catch (error) {
       console.error("Shadowrun importer failed", error);
       ui.notifications?.error(`Import failed: ${error.message}`);
+      
     }
   }
 
