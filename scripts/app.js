@@ -21,8 +21,7 @@ export class ShadowrunItemsImporterApp extends HandlebarsApplicationMixin(Applic
       icon: "fa-solid fa-file-import"
     },
     actions: {
-      importItems: ShadowrunItemsImporterApp.#onImportAction,
-      refreshTypes: ShadowrunItemsImporterApp.#onRefreshTypesAction
+      importItems: ShadowrunItemsImporterApp.onImportAction
     }
   };
 
@@ -45,6 +44,12 @@ export class ShadowrunItemsImporterApp extends HandlebarsApplicationMixin(Applic
     const lastFolderId = rememberFolder ? game.settings.get(SII.MODULE_ID, SII.SETTINGS.LAST_FOLDER) : "";
     const lastType = game.settings.get(SII.MODULE_ID, SII.SETTINGS.LAST_TYPE) || itemTypes[0]?.value || "";
 
+    const selectedItemType = lastType;
+    const gearTypeOptions = Utils.getGearTypeOptions();
+    const selectedGearType = gearTypeOptions[0]?.value || "";
+    const gearSubtypeOptions = selectedItemType === "gear" ? Utils.getGearSubtypeOptions(selectedGearType) : [];
+    const selectedGearSubtype = gearSubtypeOptions[0]?.value || "";
+
     return {
       moduleId: SII.MODULE_ID,
       title: game.i18n.localize(`${SII.MODULE_ID}.title`),
@@ -64,6 +69,17 @@ export class ShadowrunItemsImporterApp extends HandlebarsApplicationMixin(Applic
         value: type.value,
         label: type.label,
         selected: type.value === lastType
+      })),
+      isGearSelected: selectedItemType === "gear",
+      gearTypes: gearTypeOptions.map((type) => ({
+        value: type.value,
+        label: type.label,
+        selected: type.value === selectedGearType
+      })),
+      gearSubtypes: gearSubtypeOptions.map((type) => ({
+        value: type.value,
+        label: type.label,
+        selected: type.value === selectedGearSubtype
       }))
     };
   }
@@ -78,9 +94,42 @@ export class ShadowrunItemsImporterApp extends HandlebarsApplicationMixin(Applic
     if (textarea && !textarea.value && game.settings.get(SII.MODULE_ID, SII.SETTINGS.DEBUG)) {
       textarea.value = `Ares Predator VI\nHeavy Pistol\n\nDamage Value 3P\nAttack Rating 10/10/8/6\nMode SA\nAmmo 15(c)\nAvailability 3\nCost 500¥`;
     }
+
+    const itemTypeSelect = root.querySelector("select[name='itemType']");
+    const gearTypeSelect = root.querySelector("select[name='gearType']");
+    const gearSubtypeSelect = root.querySelector("select[name='gearSubtype']");
+    const gearFields = root.querySelector(".sii-gear-fields");
+
+    const refreshGearFields = () => {
+      const itemType = itemTypeSelect?.value ?? "";
+      const gearType = gearTypeSelect?.value ?? "";
+
+      if (gearFields) {
+        gearFields.style.display = itemType === "gear" ? "" : "none";
+      }
+
+      if (!gearSubtypeSelect) return;
+
+      gearSubtypeSelect.innerHTML = "";
+
+      if (itemType !== "gear" || !gearType) return;
+
+      const subtypeOptions = Utils.getGearSubtypeOptions(gearType);
+      for (const option of subtypeOptions) {
+        const el = document.createElement("option");
+        el.value = option.value;
+        el.textContent = option.label;
+        gearSubtypeSelect.appendChild(el);
+      }
+    };
+
+    itemTypeSelect?.addEventListener("change", refreshGearFields);
+    gearTypeSelect?.addEventListener("change", refreshGearFields);
+
+    refreshGearFields();
   }
 
-  static async #onImportAction(_event, _target) {
+  static async onImportAction(_event, _target) {
     const app = this.APP_INSTANCE;
     const root = this.element;
     console.log("Import Action Triggered", { event: _event, target: _target, theroot: root, theapp: app, thethis: this });
@@ -89,11 +138,16 @@ export class ShadowrunItemsImporterApp extends HandlebarsApplicationMixin(Applic
 
       const input = root.querySelector("textarea[name='input']")?.value ?? "";
       const folderId = root.querySelector("select[name='folderId']")?.value ?? "";
-      const type = root.querySelector("select[name='itemType']")?.value ?? "";
+      const baseType = root.querySelector("select[name='itemType']")?.value ?? "";
 
       if (!input.trim()) {
         ui.notifications?.warn(game.i18n.localize(`${SII.MODULE_ID}.notifications.missingInput`));
         return;
+      }
+
+      let type = baseType;
+      if (baseType === "gear") {
+        type = `gear.${gearType}.${gearSubtype}`;
       }
 
       if (game.settings.get(SII.MODULE_ID, SII.SETTINGS.REMEMBER_FOLDER)) {
@@ -116,15 +170,10 @@ export class ShadowrunItemsImporterApp extends HandlebarsApplicationMixin(Applic
     } catch (error) {
       console.error("Shadowrun importer failed", error);
       ui.notifications?.error(`Import failed: ${error.message}`);
-      
+
     }
   }
 
-  static async #onRefreshTypesAction() {
-    const app = this.APP_INSTANCE;
-    if (!app) return;
-    await app.render({ force: true });
-  }
 
   async ensureFolder(folderName) {
     const cleanName = String(folderName ?? "").trim();

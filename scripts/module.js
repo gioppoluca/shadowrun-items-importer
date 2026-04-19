@@ -12,11 +12,6 @@ Hooks.once("ready", async () => {
   if (!Utils.isSupportedSystem()) {
     ui.notifications?.warn(game.i18n.localize(`${SII.MODULE_ID}.notifications.systemMismatch`));
   }
-  Utils.log("ready", {
-    systemId: game.system.id,
-    itemTypes: Utils.getAvailableItemTypes(),
-    parsimmonReady: Boolean(false)
-  });
 });
 
 Hooks.on("renderItemDirectory", async (_app, html) => {
