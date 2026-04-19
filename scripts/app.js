@@ -139,6 +139,8 @@ export class ShadowrunItemsImporterApp extends HandlebarsApplicationMixin(Applic
       const input = root.querySelector("textarea[name='input']")?.value ?? "";
       const folderId = root.querySelector("select[name='folderId']")?.value ?? "";
       const baseType = root.querySelector("select[name='itemType']")?.value ?? "";
+      const gearType = root.querySelector("select[name='gearType']")?.value ?? "";
+      const gearSubtype = root.querySelector("select[name='gearSubtype']")?.value ?? "";
 
       if (!input.trim()) {
         ui.notifications?.warn(game.i18n.localize(`${SII.MODULE_ID}.notifications.missingInput`));
