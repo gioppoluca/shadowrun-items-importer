@@ -27,6 +27,12 @@ The scaffold is aimed at the active `shadowrun6-eden` Foundry system.
 **Spells**: as for Core
 **Gear - Chemicals - Toxin**: as for Core
 
+## Installation Instructions
+To install and use the module, simply paste the following URL into the Install System dialog on the Setup menu of the application.
+
+https://github.com/gioppoluca/shadowrun-items-importer/releases/latest/download/module.json
+
+If you wish to manually install the module download the zip archive from the Releases Page.
 
 ## Support
 
