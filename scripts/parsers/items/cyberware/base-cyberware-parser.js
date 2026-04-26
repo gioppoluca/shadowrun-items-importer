@@ -171,10 +171,13 @@ export class BaseCyberwareParser extends BaseItemParser {
 
   expandCyberwareItem({ baseName, descriptionLines, row }) {
     const ratingRange = this.extractRatingRange(row.name);
+    const explicitRating = Number(row.rating) || 0;
     const cleanName = this.cleanCyberwareName(row.name || baseName);
     const ratings = ratingRange
       ? Array.from({ length: ratingRange.max - ratingRange.min + 1 }, (_v, i) => ratingRange.min + i)
-      : [0];
+      : explicitRating
+        ? [explicitRating]
+        : [0];
 
     const items = [];
 
@@ -246,14 +249,6 @@ export class BaseCyberwareParser extends BaseItemParser {
         ammocap: 0,
         ammocount: 0,
         ammoLoaded: "regular",
-        // The Shadowrun 6 Eden sheet uses priceDef as the displayed/evaluated
-        // cost definition. For generated cyberware variants we have already
-        // resolved rating formulas and grade multipliers, so priceDef must be
-        // the final numeric price too. Keeping the printed source value here
-        // (for example "4,000¥") makes the system interpret the comma as a
-        // decimal separator in some contexts, so Simrig appeared as cost 4 and
-        // grade multipliers seemed to do nothing. The original printed row is
-        // still preserved in the item description by buildDescription().
         priceDef: Number.isFinite(price) ? price : (priceDef || 0),
         price: Number.isFinite(price) ? price : 0,
         customName: "",

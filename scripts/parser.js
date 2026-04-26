@@ -7,6 +7,7 @@ import { SpellItemParser } from "./parsers/items/spell-item-parser.js";
 import { GearWeaponParser } from "./parsers/items/gear-weapon-parser.js";
 import { GearWeaponAccessoryParser } from "./parsers/items/gear-weapon-accessory-parser.js";
 import { GearCyberwareHeadwareParser } from "./parsers/items/cyberware/gear-cyberware-headware-parser.js";
+import { GearCyberwareEyewareParser } from "./parsers/items/cyberware/gear-cyberware-eyeware-parser.js";
 
 export class ShadowrunItemsImporterParser {
   isCyberwareHeadwareInput(itemType, rawText) {
@@ -15,6 +16,14 @@ export class ShadowrunItemsImporterParser {
 
     return normalizedType.includes("CYBER_HEADWARE")
       || /^HEADWARE\s+ESSENCE\s+CAPACITY\s+AVAIL\s+COST\b/mi.test(normalizedText);
+  }
+
+  isCyberwareEyewareInput(itemType, rawText) {
+    const normalizedType = String(itemType ?? "").toUpperCase();
+    const normalizedText = String(rawText ?? "");
+
+    return normalizedType.includes("CYBER_EYEWARE")
+      || /^EYEWARE\s+ESSENCE\s+CAPACITY\s+AVAIL\s+COST\b/mi.test(normalizedText);
   }
 
   isWeaponAccessoryInput(itemType, rawText) {
@@ -35,6 +44,11 @@ export class ShadowrunItemsImporterParser {
 
     if (this.isCyberwareHeadwareInput(itemType, rawText)) {
       parser = new GearCyberwareHeadwareParser({ text: rawText, type: itemType, folderId });
+      return parser.parse();
+    }
+
+    if (this.isCyberwareEyewareInput(itemType, rawText)) {
+      parser = new GearCyberwareEyewareParser({ text: rawText, type: itemType, folderId });
       return parser.parse();
     }
 
