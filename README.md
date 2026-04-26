@@ -26,6 +26,26 @@ The scaffold is aimed at the active `shadowrun6-eden` Foundry system.
 **Matamagic**: as for Core
 **Spells**: as for Core
 **Gear - Chemicals - Toxin**: as for Core
+**Weapons**: as for core - also in multiple batch
+```
+FN P93 Praetor
+An unmistakable bullpup design offers a builtin
+fear <redacted>.
+---
+HK-227
+Heckler & Koch know how to design an
+SMG, <redacted>.
+
+WEAPON DV MODES ATTACK RATINGS AMMO AVAILABILITY COST
+Colt Cobra TZ-100 3P SA/BF 9/9/6/—/— 32(c) 2(L) 730¥
+Colt Cobra TZ-110 3P SA/BF 10/10/7/—/— 32(c) 2(L) 785¥
+Colt Cobra TZ-120 3P SA/BF 10/11/8/—/— 32(c) 3(L) 840¥
+FN P93 Praetor 4P SA/BF/FA 9/12/7/—/— 50(c) 4(L) 925¥
+HK-227 3P SA/BF 10/11/8/—/— 28(c) 3(L) 825¥
+Ingram Smartgun XI 3P SA/BF 11/9/6/—/— 32(c) 3(L) 750¥
+SCK Model 100 3P SA/BF 10/10/7/—/— 30(c) 3(L) 725¥
+Uzi IV 3P SA/BF/FA 8/8/7/—/— 24(c) 2(L) 455¥
+```
 
 ## Installation Instructions
 To install and use the module, simply paste the following URL into the Install System dialog on the Setup menu of the application.
