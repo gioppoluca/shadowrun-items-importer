@@ -23,9 +23,13 @@ The scaffold is aimed at the active `shadowrun6-eden` Foundry system.
 ## Object parsed
 
 **Qualities**: as from Core and Compendium format
+
 **Matamagic**: as for Core
+
 **Spells**: as for Core
+
 **Gear - Chemicals - Toxin**: as for Core
+
 **Weapons**: as for core - also in multiple batch
 ```
 FN P93 Praetor
