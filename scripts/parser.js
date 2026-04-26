@@ -6,8 +6,17 @@ import { GearChemicalsToxinsParser } from "./parsers/items/gear-chemicals-toxins
 import { SpellItemParser } from "./parsers/items/spell-item-parser.js";
 import { GearWeaponParser } from "./parsers/items/gear-weapon-parser.js";
 import { GearWeaponAccessoryParser } from "./parsers/items/gear-weapon-accessory-parser.js";
+import { GearCyberwareHeadwareParser } from "./parsers/items/cyberware/gear-cyberware-headware-parser.js";
 
 export class ShadowrunItemsImporterParser {
+  isCyberwareHeadwareInput(itemType, rawText) {
+    const normalizedType = String(itemType ?? "").toUpperCase();
+    const normalizedText = String(rawText ?? "");
+
+    return normalizedType.includes("CYBER_HEADWARE")
+      || /^HEADWARE\s+ESSENCE\s+CAPACITY\s+AVAIL\s+COST\b/mi.test(normalizedText);
+  }
+
   isWeaponAccessoryInput(itemType, rawText) {
     const normalizedType = String(itemType ?? "").toUpperCase();
     const normalizedText = String(rawText ?? "");
@@ -23,6 +32,11 @@ export class ShadowrunItemsImporterParser {
 
     let parser;
     console.log("Creating parser for type:", itemType, folderId, rawText);
+
+    if (this.isCyberwareHeadwareInput(itemType, rawText)) {
+      parser = new GearCyberwareHeadwareParser({ text: rawText, type: itemType, folderId });
+      return parser.parse();
+    }
 
     if (this.isWeaponAccessoryInput(itemType, rawText)) {
       parser = new GearWeaponAccessoryParser({ text: rawText, type: itemType, folderId });
