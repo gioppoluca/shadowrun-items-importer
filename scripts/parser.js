@@ -1,15 +1,10 @@
 import { SII } from "./constants.js";
+import { ShadowrunItemsImporterUtils as Utils } from "./utils.js";
 import { QualityItemParser } from "./parsers/items/quality-item-parser.js";
 import { MetamagicItemParser } from "./parsers/items/metamagic-item-parser.js";
 import { GearChemicalsToxinsParser } from "./parsers/items/gear-chemicals-toxins-parser.js";
 import { SpellItemParser } from "./parsers/items/spell-item-parser.js";
-
-const PARSER_REGISTRY = {
-  quality: QualityItemParser,
-  metamagic: MetamagicItemParser,
-  spell: SpellItemParser,
-  "gear.CHEMICALS.TOXINS": GearChemicalsToxinsParser
-};
+import { GearWeaponParser } from "./parsers/items/gear-weapon-parser.js";
 
 export class ShadowrunItemsImporterParser {
   parseInput(rawText, folderId, itemType) {
@@ -17,17 +12,34 @@ export class ShadowrunItemsImporterParser {
       throw new Error("Ohm.js is required but was not found on globalThis.ohm");
     }
 
-    const ParserClass = PARSER_REGISTRY[itemType];
+    let parser;
+    console.log("Creating parser for type:", itemType, folderId, rawText);
 
-    if (!ParserClass) {
-      const label = CONFIG.Item.typeLabels[itemType]
-        ? game.i18n.localize(CONFIG.Item.typeLabels[itemType])
-        : itemType;
-      ui.notifications?.warn(`${label} is not supported yet.`);
-      return null;
+    if (itemType.startsWith("gear.WEAPON")) {
+      parser = new GearWeaponParser({ text: rawText, type: itemType, folderId });
+      return parser.parse();
     }
 
-    const parser = new ParserClass({ text: rawText, type: itemType, folderId });
+    switch (itemType) {
+      case "quality":
+        parser = new QualityItemParser({ text: rawText, type: itemType, folderId });
+        break;
+      case "metamagic":
+        parser = new MetamagicItemParser({ text: rawText, type: itemType, folderId });
+        break;
+      case "gear.CHEMICALS.TOXINS":
+        parser = new GearChemicalsToxinsParser({ text: rawText, type: itemType, folderId });
+        break;
+      case "spell":
+        parser = new SpellItemParser({ text: rawText, type: itemType, folderId });
+        break;
+      default:
+        ui.notifications?.warn(`${game.i18n.localize(CONFIG.Item.typeLabels[itemType])} is not supported yet.`);
+        return null;
+    }
+
     return parser.parse();
   }
 }
+
+

@@ -173,15 +173,26 @@ export class ShadowrunItemsImporterApp extends HandlebarsApplicationMixin(Applic
       const parsedObject = await parser.parseInput(input, folderId || null, parserType);
       if (!parsedObject) return;
 
-      const created = await app.createItemDocument(parsedObject, folderId || null);
+      const parsedObjects = Array.isArray(parsedObject) ? parsedObject : [parsedObject];
+      const createdItems = [];
 
-      const warnings = parsedObject.flags?.[SII.MODULE_ID]?.warnings ?? [];
-      for (const warning of warnings) {
-        ui.notifications?.warn(warning);
+      for (const itemData of parsedObjects) {
+        const created = await app.createItemDocument(itemData, folderId || null);
+        createdItems.push(created);
+
+        const warnings = itemData.flags?.[SII.MODULE_ID]?.warnings ?? [];
+        for (const warning of warnings) {
+          ui.notifications?.warn(warning);
+        }
       }
 
-      ui.notifications?.info(`Created item: `);
-      await created.sheet.render(true);
+      if (createdItems.length === 1) {
+        ui.notifications?.info(`Created item: ${createdItems[0].name}`);
+        await createdItems[0].sheet.render(true);
+      } else {
+        ui.notifications?.info(`Created ${createdItems.length} items.`);
+      }
+
       app.close();
     } catch (error) {
       console.error("Shadowrun importer failed", error);
