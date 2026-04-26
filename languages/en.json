@@ -11,7 +11,7 @@
   "shadowrun-items-importer.label.ready": "ready",
   "shadowrun-items-importer.label.missing": "missing",
   "shadowrun-items-importer.label.none": "None",
-  "shadowrun-items-importer.placeholder": "Paste a Shadowrun 6e item block here.\n\nPlanned use:\n- weapon blocks\n- armor blocks\n- gear blocks\n- cyberware / bioware\n- magical items and other supported entries\n\nThis version only provides qualities, metamagic and toxins.",
+  "shadowrun-items-importer.placeholder": "Paste a Shadowrun 6e item block here.\n\nSupported in this version:\n- qualities\n- metamagic\n- spells\n- chemical toxins\n\nExample toxin:\nNarcoject\n• Vector: Injection\n• Speed: Immediate\n• Duration: (6 – Body) hours, minimum 1 hour\n• Power: 15\n• Effect: Stun Damage",
   "shadowrun-items-importer.hint.window": "Initial scaffold ready. Real Ohm.js parsing is the next step.",
   "shadowrun-items-importer.notifications.systemMismatch": "Shadowrun Items Importer is intended for the Shadowrun 6th Edition system.",
   "shadowrun-items-importer.notifications.noItemTypes": "No item types were discovered from the active system.",
@@ -26,5 +26,9 @@
   "shadowrun-items-importer.settings.lastFolder.name": "Last folder id",
   "shadowrun-items-importer.settings.lastFolder.hint": "Internal setting used to persist the last selected destination folder.",
   "shadowrun-items-importer.settings.lastType.name": "Last item type",
-  "shadowrun-items-importer.settings.lastType.hint": "Internal setting used to persist the last selected item type."
+  "shadowrun-items-importer.settings.lastType.hint": "Internal setting used to persist the last selected item type.",
+  "shadowrun-items-importer.settings.lastGearType.name": "Last gear type",
+  "shadowrun-items-importer.settings.lastGearType.hint": "Internal setting used to persist the last selected gear type.",
+  "shadowrun-items-importer.settings.lastGearSubtype.name": "Last gear subtype",
+  "shadowrun-items-importer.settings.lastGearSubtype.hint": "Internal setting used to persist the last selected gear subtype."
 }

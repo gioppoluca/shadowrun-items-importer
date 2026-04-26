@@ -14,8 +14,8 @@ export class SpellItemParser extends BaseItemParser {
         if (!lines.length) {
             return this.toFoundryItem({
                 name: "Unnamed Spell",
-                metaLine: "",
-                statLine: "",
+                meta: this.parseMetaLine(""),
+                stats: this.parseStatLine(""),
                 description: ""
             });
         }
@@ -25,7 +25,6 @@ export class SpellItemParser extends BaseItemParser {
 
         let metaLine = "";
         let statLine = "";
-        let descriptionLines = [];
 
         if (lines[index] && /^\(.*\)$/.test(lines[index])) {
             metaLine = lines[index];
@@ -41,11 +40,10 @@ export class SpellItemParser extends BaseItemParser {
             index += 1;
         }
 
-        descriptionLines = lines.slice(index);
-
+        const descriptionLines = lines.slice(index);
         const meta = this.parseMetaLine(metaLine);
         const stats = this.parseStatLine(statLine);
-        const description = this.joinWrappedText(descriptionLines);
+        const description = this.linesToHtml(descriptionLines);
 
         return this.toFoundryItem({
             name,
@@ -56,20 +54,15 @@ export class SpellItemParser extends BaseItemParser {
     }
 
     looksLikeSpellHeaderLine(line) {
-        const normalized = String(line ?? "").trim().toUpperCase();
+        const normalized = String(line ?? "").trim().toUpperCase().replace(/\s+/g, " ");
         return normalized.includes("RANGE")
             && normalized.includes("TYPE")
             && normalized.includes("DURATION")
-            && normalized.includes("DV")
-            && normalized.includes("DAMAGE");
+            && normalized.includes("DV");
     }
 
     looksLikeSpellStatLine(line) {
-        const normalized = String(line ?? "").trim();
-        if (!normalized) return false;
-
-        const tokens = normalized.split(/\s+/);
-        return tokens.length >= 5;
+        return Boolean(this.tokenizeStatLine(line).length >= 4);
     }
 
     parseMetaLine(line) {
@@ -77,8 +70,10 @@ export class SpellItemParser extends BaseItemParser {
         if (!raw) {
             return {
                 category: "health",
+                categoryDetected: false,
                 combatSpellType: "spells_indirect",
-                area: false
+                area: false,
+                multiSense: false
             };
         }
 
@@ -87,18 +82,24 @@ export class SpellItemParser extends BaseItemParser {
         const lower = parts.map((p) => p.toLowerCase());
 
         let category = "health";
+        let categoryDetected = false;
         let combatSpellType = "";
 
         if (lower.some((p) => p.includes("combat"))) {
             category = "combat";
+            categoryDetected = true;
         } else if (lower.some((p) => p.includes("detection"))) {
             category = "detection";
+            categoryDetected = true;
         } else if (lower.some((p) => p.includes("health"))) {
             category = "health";
+            categoryDetected = true;
         } else if (lower.some((p) => p.includes("illusion"))) {
             category = "illusion";
+            categoryDetected = true;
         } else if (lower.some((p) => p.includes("manipulation"))) {
             category = "manipulation";
+            categoryDetected = true;
         }
 
         if (lower.some((p) => p.includes("indirect combat"))) {
@@ -108,17 +109,20 @@ export class SpellItemParser extends BaseItemParser {
         }
 
         const area = lower.some((p) => p === "area" || p.includes("area"));
+        const multiSense = lower.some((p) => p.includes("multi-sense") || p.includes("multisense"));
 
         return {
             category,
+            categoryDetected,
             combatSpellType,
-            area
+            area,
+            multiSense
         };
     }
 
     parseStatLine(line) {
-        const raw = String(line ?? "").trim();
-        if (!raw) {
+        const tokens = this.tokenizeStatLine(line);
+        if (tokens.length < 4) {
             return {
                 range: "self",
                 type: "physical",
@@ -129,14 +133,8 @@ export class SpellItemParser extends BaseItemParser {
             };
         }
 
-        let normalized = raw.replace(/LOS\s*\(A\)/gi, "LOS_AREA");
-        const tokens = normalized.split(/\s+/);
-
-        const rangeToken = tokens[0] ?? "";
-        const typeToken = tokens[1] ?? "";
-        const durationToken = tokens[2] ?? "";
-        const drainToken = tokens[3] ?? "";
-        const damageText = tokens.slice(4).join(" ").trim();
+        const [rangeToken, typeToken, durationToken, drainToken, ...damageTokens] = tokens;
+        const damageText = damageTokens.join(" ").trim();
 
         return {
             range: this.mapRange(rangeToken),
@@ -146,6 +144,21 @@ export class SpellItemParser extends BaseItemParser {
             damage: this.mapDamage(damageText, typeToken),
             specialDamageText: damageText
         };
+    }
+
+    tokenizeStatLine(line) {
+        const raw = String(line ?? "").trim();
+        if (!raw) return [];
+
+        const normalized = raw
+            .replace(/LOS\s*\(\s*A\s*\)/gi, "LOS_AREA")
+            .replace(/(LOS_AREA|LOS|T|S)(?=[PM]\b)/gi, "$1 ")
+            .replace(/([PM])(?=[ISP]\b)/g, "$1 ")
+            .replace(/([ISP])(?=\d\b)/g, "$1 ")
+            .replace(/\s+/g, " ")
+            .trim();
+
+        return normalized.split(/\s+/).filter(Boolean);
     }
 
     mapRange(rangeToken) {
@@ -193,13 +206,14 @@ export class SpellItemParser extends BaseItemParser {
         return "physical";
     }
 
-    joinWrappedText(lines = []) {
-        return lines
-            .map((line) => String(line ?? "").trim())
-            .filter((line) => line.length > 0)
-            .join(" ")
-            .replace(/\s+/g, " ")
-            .trim();
+    buildWarnings(meta) {
+        const warnings = [];
+
+        if (!meta.categoryDetected) {
+            warnings.push("Spell category could not be determined from the text. Please set the spell category manually on the item sheet.");
+        }
+
+        return warnings;
     }
 
     toFoundryItem({ name, meta, stats, description }) {
@@ -219,7 +233,7 @@ export class SpellItemParser extends BaseItemParser {
                 range: stats.range || "self",
                 damage: stats.damage || "physical",
                 alchemic: false,
-                multiSense: false,
+                multiSense: Boolean(meta.multiSense),
                 isOpposed: true,
                 withEssence: true,
                 wildDie: false,
@@ -228,7 +242,12 @@ export class SpellItemParser extends BaseItemParser {
             },
             effects: [],
             folder: this.folderId ?? null,
-            flags: {}
+            flags: {
+                ["shadowrun-items-importer"]: {
+                    specialDamageText: stats.specialDamageText || "",
+                    warnings: this.buildWarnings(meta)
+                }
+            }
         };
     }
 }

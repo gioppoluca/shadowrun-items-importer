@@ -42,13 +42,22 @@ export class ShadowrunItemsImporterApp extends HandlebarsApplicationMixin(Applic
     const folders = Utils.getItemFolders();
     const rememberFolder = game.settings.get(SII.MODULE_ID, SII.SETTINGS.REMEMBER_FOLDER);
     const lastFolderId = rememberFolder ? game.settings.get(SII.MODULE_ID, SII.SETTINGS.LAST_FOLDER) : "";
-    const lastType = game.settings.get(SII.MODULE_ID, SII.SETTINGS.LAST_TYPE) || itemTypes[0]?.value || "";
 
-    const selectedItemType = lastType;
+    const savedType = game.settings.get(SII.MODULE_ID, SII.SETTINGS.LAST_TYPE) || itemTypes[0]?.value || "";
+    const legacyGearParts = savedType.startsWith("gear.") ? savedType.split(".") : [];
+    const selectedItemType = legacyGearParts.length ? "gear" : savedType;
+
     const gearTypeOptions = Utils.getGearTypeOptions();
-    const selectedGearType = gearTypeOptions[0]?.value || "";
+    const selectedGearType = game.settings.get(SII.MODULE_ID, SII.SETTINGS.LAST_GEAR_TYPE)
+      || legacyGearParts[1]
+      || gearTypeOptions[0]?.value
+      || "";
+
     const gearSubtypeOptions = selectedItemType === "gear" ? Utils.getGearSubtypeOptions(selectedGearType) : [];
-    const selectedGearSubtype = gearSubtypeOptions[0]?.value || "";
+    const selectedGearSubtype = game.settings.get(SII.MODULE_ID, SII.SETTINGS.LAST_GEAR_SUBTYPE)
+      || legacyGearParts[2]
+      || gearSubtypeOptions[0]?.value
+      || "";
 
     return {
       moduleId: SII.MODULE_ID,
@@ -68,7 +77,7 @@ export class ShadowrunItemsImporterApp extends HandlebarsApplicationMixin(Applic
       itemTypes: itemTypes.map((type) => ({
         value: type.value,
         label: type.label,
-        selected: type.value === lastType
+        selected: type.value === selectedItemType
       })),
       isGearSelected: selectedItemType === "gear",
       gearTypes: gearTypeOptions.map((type) => ({
@@ -92,7 +101,7 @@ export class ShadowrunItemsImporterApp extends HandlebarsApplicationMixin(Applic
 
     const textarea = root.querySelector("textarea[name='input']");
     if (textarea && !textarea.value && game.settings.get(SII.MODULE_ID, SII.SETTINGS.DEBUG)) {
-      textarea.value = `Ares Predator VI\nHeavy Pistol\n\nDamage Value 3P\nAttack Rating 10/10/8/6\nMode SA\nAmmo 15(c)\nAvailability 3\nCost 500¥`;
+      textarea.value = `Narcoject\n• Vector: Injection\n• Speed: Immediate\n• Duration: (6 – Body) hours, minimum 1 hour\n• Power: 15\n• Effect: Stun Damage\nA common tranquilizer, narcoject is typically\nused with dart guns. It has no side effects.`;
     }
 
     const itemTypeSelect = root.querySelector("select[name='itemType']");
@@ -103,6 +112,7 @@ export class ShadowrunItemsImporterApp extends HandlebarsApplicationMixin(Applic
     const refreshGearFields = () => {
       const itemType = itemTypeSelect?.value ?? "";
       const gearType = gearTypeSelect?.value ?? "";
+      const previousSubtype = gearSubtypeSelect?.value ?? "";
 
       if (gearFields) {
         gearFields.style.display = itemType === "gear" ? "" : "none";
@@ -119,6 +129,7 @@ export class ShadowrunItemsImporterApp extends HandlebarsApplicationMixin(Applic
         const el = document.createElement("option");
         el.value = option.value;
         el.textContent = option.label;
+        el.selected = option.value === previousSubtype;
         gearSubtypeSelect.appendChild(el);
       }
     };
@@ -130,12 +141,11 @@ export class ShadowrunItemsImporterApp extends HandlebarsApplicationMixin(Applic
   }
 
   static async onImportAction(_event, _target) {
-    const app = this.APP_INSTANCE;
-    const root = this.element;
-    console.log("Import Action Triggered", { event: _event, target: _target, theroot: root, theapp: app, thethis: this });
-    if (!root) return;
-    try {
+    const app = ShadowrunItemsImporterApp.APP_INSTANCE;
+    const root = app?.element;
+    if (!app || !root) return;
 
+    try {
       const input = root.querySelector("textarea[name='input']")?.value ?? "";
       const folderId = root.querySelector("select[name='folderId']")?.value ?? "";
       const baseType = root.querySelector("select[name='itemType']")?.value ?? "";
@@ -147,61 +157,49 @@ export class ShadowrunItemsImporterApp extends HandlebarsApplicationMixin(Applic
         return;
       }
 
-      let type = baseType;
-      if (baseType === "gear") {
-        type = `gear.${gearType}.${gearSubtype}`;
-      }
+      const parserType = baseType === "gear" ? `gear.${gearType}.${gearSubtype}` : baseType;
 
       if (game.settings.get(SII.MODULE_ID, SII.SETTINGS.REMEMBER_FOLDER)) {
         await game.settings.set(SII.MODULE_ID, SII.SETTINGS.LAST_FOLDER, folderId);
       }
-      await game.settings.set(SII.MODULE_ID, SII.SETTINGS.LAST_TYPE, type);
 
-      let parser = new ShadowrunItemsImporterParser();
-      console.log("Parser Instance Created", { parser });
-      console.log(input, folderId, type);
-      let parsedObject = await parser.parseInput(input, folderId || null, type);
-      console.log("Parsed Object:", parsedObject);
+      await game.settings.set(SII.MODULE_ID, SII.SETTINGS.LAST_TYPE, baseType);
+      if (baseType === "gear") {
+        await game.settings.set(SII.MODULE_ID, SII.SETTINGS.LAST_GEAR_TYPE, gearType);
+        await game.settings.set(SII.MODULE_ID, SII.SETTINGS.LAST_GEAR_SUBTYPE, gearSubtype);
+      }
+
+      const parser = new ShadowrunItemsImporterParser();
+      const parsedObject = await parser.parseInput(input, folderId || null, parserType);
       if (!parsedObject) return;
 
-      const created = await this.createItemDocument(parsedObject, folderId);
+      const created = await app.createItemDocument(parsedObject, folderId || null);
 
-      ui.notifications?.info(`Created item: ${created.name}`);
+      const warnings = parsedObject.flags?.[SII.MODULE_ID]?.warnings ?? [];
+      for (const warning of warnings) {
+        ui.notifications?.warn(warning);
+      }
+
+      ui.notifications?.info(`Created item: `);
       await created.sheet.render(true);
-      this.close();
+      app.close();
     } catch (error) {
       console.error("Shadowrun importer failed", error);
       ui.notifications?.error(`Import failed: ${error.message}`);
-
     }
   }
 
-
-  async ensureFolder(folderName) {
-    const cleanName = String(folderName ?? "").trim();
-    if (!cleanName) return null;
-
-    let folder = game.folders?.find(
-      (f) => f.type === "Item" && f.name === cleanName
-    );
-
-    if (!folder) {
-      folder = await Folder.create({
-        name: cleanName,
-        type: "Item",
-        color: "#6f8f9f"
-      });
-    }
-
-    return folder;
-  }
-
-  async createItemDocument(itemData, folderName) {
-    const folder = await this.ensureFolder(folderName);
-
+  async createItemDocument(itemData, folderId) {
     const payload = foundry.utils.deepClone(itemData);
-    payload.folder = folder?.id ?? null;
+    const normalizedFolderId = folderId || null;
+    payload.folder = normalizedFolderId;
 
-    return await Item.create(payload);
+    const created = await Item.create(payload);
+
+    if (normalizedFolderId && created.folder?.id !== normalizedFolderId) {
+      await created.update({ folder: normalizedFolderId });
+    }
+
+    return created;
   }
 }

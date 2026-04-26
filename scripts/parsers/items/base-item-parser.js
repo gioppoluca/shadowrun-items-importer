@@ -71,6 +71,73 @@ export class BaseItemParser {
     return /^[^:]{1,80}:\s*\S+/u.test(normalized);
   }
 
+
+
+  /**
+   * Parses the leading block of bullet/labeled fields and keeps OCR/PDF wrapped
+   * field values together.
+   *
+   * Shadowrun PDF text extraction can split a bullet value over multiple lines:
+   *   • Duration: (12 – Body) hours, minimum 1
+   *   hour
+   *   • Power: 8
+   *
+   * In that case the plain "hour" line is not description text; it belongs to
+   * the previous field because another labeled field follows it. Conversely,
+   * after the last labeled field, normal prose starts and must remain the item
+   * description. This method uses that rule generically for parsers whose item
+   * format starts with a compact field block followed by prose.
+   */
+  parseLeadingFieldBlock(lines = []) {
+    const fields = {};
+    const descriptionLines = [];
+    const sourceLines = Array.isArray(lines) ? lines : [];
+
+    let index = 0;
+
+    while (index < sourceLines.length) {
+      const parsedField = this.parseFieldLine(sourceLines[index]);
+
+      if (!parsedField) break;
+
+      const label = this.normalizeLabel(parsedField.label);
+      const valueParts = [];
+      if (parsedField.value) valueParts.push(parsedField.value);
+      index += 1;
+
+      while (index < sourceLines.length) {
+        const nextField = this.parseFieldLine(sourceLines[index]);
+        if (nextField) break;
+
+        const continuation = this.stripBulletMarker(sourceLines[index]);
+        if (!continuation) {
+          index += 1;
+          continue;
+        }
+
+        const hasAnotherFieldAfterContinuation = sourceLines
+          .slice(index + 1)
+          .some((line) => Boolean(this.parseFieldLine(line)));
+
+        if (!hasAnotherFieldAfterContinuation) break;
+
+        valueParts.push(continuation);
+        index += 1;
+      }
+
+      fields[label] = valueParts.join(" ").replace(/\s+/g, " ").trim();
+    }
+
+    descriptionLines.push(
+      ...sourceLines
+        .slice(index)
+        .map((line) => this.stripBulletMarker(line))
+        .filter((line) => line.length > 0)
+    );
+
+    return { fields, descriptionLines };
+  }
+
   /**
    * Lazily builds a tiny Ohm grammar for "Label: Value" lines.
    * This is intentionally generic so subclasses can reuse it.

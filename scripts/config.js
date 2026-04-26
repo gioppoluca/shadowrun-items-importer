@@ -37,5 +37,23 @@ export class ShadowrunItemsImporterConfig {
       type: String,
       default: ""
     });
+
+    game.settings.register(SII.MODULE_ID, SII.SETTINGS.LAST_GEAR_TYPE, {
+      name: `${SII.MODULE_ID}.settings.lastGearType.name`,
+      hint: `${SII.MODULE_ID}.settings.lastGearType.hint`,
+      scope: "client",
+      config: false,
+      type: String,
+      default: ""
+    });
+
+    game.settings.register(SII.MODULE_ID, SII.SETTINGS.LAST_GEAR_SUBTYPE, {
+      name: `${SII.MODULE_ID}.settings.lastGearSubtype.name`,
+      hint: `${SII.MODULE_ID}.settings.lastGearSubtype.hint`,
+      scope: "client",
+      config: false,
+      type: String,
+      default: ""
+    });
   }
 }

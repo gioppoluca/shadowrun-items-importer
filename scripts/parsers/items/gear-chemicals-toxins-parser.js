@@ -22,27 +22,7 @@ export class GearChemicalsToxinsParser extends BaseItemParser {
         const name = lines[0];
         const remaining = lines.slice(1);
 
-        const fields = {};
-        const descriptionLines = [];
-
-        let inDescription = false;
-
-        for (const rawLine of remaining) {
-            const parsedField = !inDescription ? this.parseFieldLine(rawLine) : null;
-
-            if (parsedField) {
-                const label = this.normalizeLabel(parsedField.label);
-                fields[label] = parsedField.value;
-                continue;
-            }
-
-            const cleaned = this.stripBulletMarker(rawLine);
-            if (!cleaned) continue;
-
-            inDescription = true;
-            descriptionLines.push(cleaned);
-        }
-
+        const { fields, descriptionLines } = this.parseLeadingFieldBlock(remaining);
         const description = this.buildDescription(fields, descriptionLines);
 
         return this.toFoundryItem({

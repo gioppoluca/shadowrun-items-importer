@@ -8,7 +8,9 @@ export const SII = {
     DEBUG: "debug",
     REMEMBER_FOLDER: "rememberFolder",
     LAST_FOLDER: "lastFolder",
-    LAST_TYPE: "lastType"
+    LAST_TYPE: "lastType",
+    LAST_GEAR_TYPE: "lastGearType",
+    LAST_GEAR_SUBTYPE: "lastGearSubtype"
   },
   TARGET_SYSTEMS: ["shadowrun6-eden"]
 };
