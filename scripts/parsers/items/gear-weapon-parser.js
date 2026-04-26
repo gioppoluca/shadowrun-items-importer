@@ -154,7 +154,11 @@ export class GearWeaponParser extends BaseItemParser {
 
   parseWeaponRow(rawRow, headerInfo) {
     const normalized = this.normalizeTableRow(rawRow);
-    const rowMatch = normalized.match(/^(.+?)\s+((?:\([^)]*Rating[^)]*\)|\(?Rating(?:\/\d+)?\)?|\d+)[PS](?:\(e\))?|[-–—])\s+(.+)$/iu);
+    // Launcher rows use textual DV values ("Grenade" or "Missile") instead of
+    // the usual numeric damage code. Keep those words in the DV column; otherwise
+    // the parser would treat them as part of the weapon name and fail to import
+    // launcher table rows such as "Ares Antioch II Grenade SS ...".
+    const rowMatch = normalized.match(/^(.+?)\s+((?:Grenade|Missile)|(?:\([^)]*Rating[^)]*\)|\(?Rating(?:\/\d+)?\)?|\d+)[PS](?:\(e\))?|[-–—])\s+(.+)$/iu);
     if (!rowMatch) return null;
 
     const name = rowMatch[1].trim();
@@ -293,6 +297,39 @@ export class GearWeaponParser extends BaseItemParser {
     return text ? `<p>${text}</p>` : "";
   }
 
+  /**
+   * Shadowrun 6 weapon prices use English-style thousands separators.
+   *
+   * Examples:
+   *   - 7,000¥ -> price 7000
+   *   - 1,800¥ -> price 1800
+   *   - 100 + (rating x 10)¥ -> formula, keep it in priceDef and leave price 0
+   *
+   * Do not replace commas with decimal separators: in these tables a comma is
+   * a thousands separator, not a decimal separator.
+   */
+  parseCost(rawCost) {
+    const original = String(rawCost ?? "").trim();
+    if (!original) return { price: 0, priceDef: 0 };
+
+    const withoutCurrency = original.replace(/¥/gu, "").trim();
+
+    if (/[()+x]/iu.test(withoutCurrency)) {
+      return {
+        price: 0,
+        priceDef: original
+      };
+    }
+
+    const normalizedNumber = withoutCurrency.replace(/[,_\s]/gu, "");
+    const value = Number(normalizedNumber);
+
+    return {
+      price: Number.isFinite(value) ? value : 0,
+      priceDef: Number.isFinite(value) ? value : original
+    };
+  }
+
   parseAttackRatings(value) {
     const parts = String(value ?? "")
       .split("/")
@@ -334,6 +371,8 @@ export class GearWeaponParser extends BaseItemParser {
     const dv = row?.dv ?? "";
     const damageNumber = this.extractFirstInteger(dv, 0);
     const isStun = /S/i.test(dv);
+    const parsedCost = this.parseCost(row?.cost);
+
     const notes = row
       ? [
           row.raw ? `<p><strong>Imported table row:</strong> ${row.raw}</p>` : "",
@@ -363,8 +402,8 @@ export class GearWeaponParser extends BaseItemParser {
         ammocap: this.extractFirstInteger(row?.ammo, 0),
         ammocount: 0,
         ammoLoaded: "regular",
-        priceDef: this.extractFirstInteger(row?.cost, 0),
-        price: this.extractFirstInteger(row?.cost, 0),
+        priceDef: parsedCost.priceDef,
+        price: parsedCost.price,
         customName: "",
         usedForPool: false,
         notes,

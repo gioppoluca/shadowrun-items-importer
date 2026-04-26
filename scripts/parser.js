@@ -5,8 +5,17 @@ import { MetamagicItemParser } from "./parsers/items/metamagic-item-parser.js";
 import { GearChemicalsToxinsParser } from "./parsers/items/gear-chemicals-toxins-parser.js";
 import { SpellItemParser } from "./parsers/items/spell-item-parser.js";
 import { GearWeaponParser } from "./parsers/items/gear-weapon-parser.js";
+import { GearWeaponAccessoryParser } from "./parsers/items/gear-weapon-accessory-parser.js";
 
 export class ShadowrunItemsImporterParser {
+  isWeaponAccessoryInput(itemType, rawText) {
+    const normalizedType = String(itemType ?? "").toUpperCase();
+    const normalizedText = String(rawText ?? "");
+
+    return normalizedType.includes("ACCESSOR")
+      || /^ACCESSORY\s+MOUNT\s+AVAILABILITY\s+COST\b/mi.test(normalizedText);
+  }
+
   parseInput(rawText, folderId, itemType) {
     if (!globalThis.ohm) {
       throw new Error("Ohm.js is required but was not found on globalThis.ohm");
@@ -14,6 +23,11 @@ export class ShadowrunItemsImporterParser {
 
     let parser;
     console.log("Creating parser for type:", itemType, folderId, rawText);
+
+    if (this.isWeaponAccessoryInput(itemType, rawText)) {
+      parser = new GearWeaponAccessoryParser({ text: rawText, type: itemType, folderId });
+      return parser.parse();
+    }
 
     if (itemType.startsWith("gear.WEAPON")) {
       parser = new GearWeaponParser({ text: rawText, type: itemType, folderId });
