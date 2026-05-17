@@ -4,10 +4,9 @@ import { QualityItemParser } from "./parsers/items/quality-item-parser.js";
 import { MetamagicItemParser } from "./parsers/items/metamagic-item-parser.js";
 import { GearChemicalsToxinsParser } from "./parsers/items/gear-chemicals-toxins-parser.js";
 import { SpellItemParser } from "./parsers/items/spell-item-parser.js";
-import { SoftwareItemParser } from "./parsers/items/software-item-parser.js";
-import { CritterPowerItemParser } from "./parsers/items/critter-power-item-parser.js";
 import { GearWeaponParser } from "./parsers/items/gear-weapon-parser.js";
 import { GearWeaponAccessoryParser } from "./parsers/items/gear-weapon-accessory-parser.js";
+import { BiotechItemParser } from "./parsers/items/biotech-item-parser.js";
 import { GearCyberwareHeadwareParser } from "./parsers/items/cyberware/gear-cyberware-headware-parser.js";
 import { GearCyberwareEyewareParser } from "./parsers/items/cyberware/gear-cyberware-eyeware-parser.js";
 
@@ -26,6 +25,14 @@ export class ShadowrunItemsImporterParser {
 
     return normalizedType.includes("CYBER_EYEWARE")
       || /^EYEWARE\s+ESSENCE\s+CAPACITY\s+AVAIL\s+COST\b/mi.test(normalizedText);
+  }
+
+  isBiotechInput(itemType, rawText) {
+    const normalizedType = String(itemType ?? "").toUpperCase();
+    const normalizedText = String(rawText ?? "");
+
+    return normalizedType.includes("BIOLOGY")
+      && /^GEAR\s+AVAIL\s+COST\b/mi.test(normalizedText);
   }
 
   isWeaponAccessoryInput(itemType, rawText) {
@@ -59,6 +66,11 @@ export class ShadowrunItemsImporterParser {
       return parser.parse();
     }
 
+    if (this.isBiotechInput(itemType, rawText)) {
+      parser = new BiotechItemParser({ text: rawText, type: itemType, folderId });
+      return parser.parse();
+    }
+
     if (itemType.startsWith("gear.WEAPON")) {
       parser = new GearWeaponParser({ text: rawText, type: itemType, folderId });
       return parser.parse();
@@ -74,15 +86,12 @@ export class ShadowrunItemsImporterParser {
       case "gear.CHEMICALS.TOXINS":
         parser = new GearChemicalsToxinsParser({ text: rawText, type: itemType, folderId });
         break;
+      case "gear.BIOLOGY.BIOTECH":
+      case "gear.BIOLOGY.SLAP_PATCHES":
+        parser = new BiotechItemParser({ text: rawText, type: itemType, folderId });
+        break;
       case "spell":
         parser = new SpellItemParser({ text: rawText, type: itemType, folderId });
-        break;
-      case "software":
-        parser = new SoftwareItemParser({ text: rawText, type: itemType, folderId });
-        break;
-      case "critterpower":
-      case "critter-power":
-        parser = new CritterPowerItemParser({ text: rawText, type: itemType, folderId });
         break;
       default:
         ui.notifications?.warn(`${game.i18n.localize(CONFIG.Item.typeLabels[itemType])} is not supported yet.`);
