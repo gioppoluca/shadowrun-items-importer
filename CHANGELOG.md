@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.6] - 2026-04-26
+### :sparkles: New Features
+- [`56af89a`](https://github.com/gioppoluca/shadowrun-items-importer/commit/56af89aa473a582c2e4156607d7c3db8240dfbce) - weapon accessories *(commit by [@gioppoluca](https://github.com/gioppoluca))*
+- [`8d1e0a9`](https://github.com/gioppoluca/shadowrun-items-importer/commit/8d1e0a9641091c35191c5220abae113c0014b6af) - cyberware start *(commit by [@gioppoluca](https://github.com/gioppoluca))*
+- [`82fe7a1`](https://github.com/gioppoluca/shadowrun-items-importer/commit/82fe7a1dfb5c443751ec432f43f0f5da6226b5a2) - added cybereyes *(commit by [@gioppoluca](https://github.com/gioppoluca))*
+
+
 ## [1.13.5] - 2026-04-26
 ### :sparkles: New Features
 - [`dc3f7f6`](https://github.com/gioppoluca/shadowrun-items-importer/commit/dc3f7f621cb4234edbda5c0a5cf714b48dea7da1) - added weapons and capability to parse multiple *(commit by [@gioppoluca](https://github.com/gioppoluca))*
@@ -27,3 +34,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [1.13.3]: https://github.com/gioppoluca/shadowrun-items-importer/compare/1.13.2...1.13.3
 [1.13.4]: https://github.com/gioppoluca/shadowrun-items-importer/compare/1.13.3...1.13.4
 [1.13.5]: https://github.com/gioppoluca/shadowrun-items-importer/compare/1.13.4...1.13.5
+[1.13.6]: https://github.com/gioppoluca/shadowrun-items-importer/compare/1.13.5...1.13.6
