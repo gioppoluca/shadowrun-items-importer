@@ -4,6 +4,7 @@ import { QualityItemParser } from "./parsers/items/quality-item-parser.js";
 import { MetamagicItemParser } from "./parsers/items/metamagic-item-parser.js";
 import { GearChemicalsToxinsParser } from "./parsers/items/gear-chemicals-toxins-parser.js";
 import { SpellItemParser } from "./parsers/items/spell-item-parser.js";
+import { SoftwareItemParser } from "./parsers/items/software-item-parser.js";
 import { GearWeaponParser } from "./parsers/items/gear-weapon-parser.js";
 import { GearWeaponAccessoryParser } from "./parsers/items/gear-weapon-accessory-parser.js";
 import { GearCyberwareHeadwareParser } from "./parsers/items/cyberware/gear-cyberware-headware-parser.js";
@@ -74,6 +75,9 @@ export class ShadowrunItemsImporterParser {
         break;
       case "spell":
         parser = new SpellItemParser({ text: rawText, type: itemType, folderId });
+        break;
+      case "software":
+        parser = new SoftwareItemParser({ text: rawText, type: itemType, folderId });
         break;
       default:
         ui.notifications?.warn(`${game.i18n.localize(CONFIG.Item.typeLabels[itemType])} is not supported yet.`);
