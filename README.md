@@ -18,9 +18,13 @@ Spend less time typing, and more time running the shadows.
 
 ## Supported system target
 
-The scaffold is aimed at the active `shadowrun6-eden` Foundry system.
+The importer is aimed at the active `shadowrun6-eden` Foundry system.
 
 ## Object parsed
+<details>
+  <summary><strong>Critter Power</strong></summary>
+  as for Core
+</details>
 <details open>
   <summary><strong>Qualities</strong></summary>
   as from Core and Compendium format
@@ -34,6 +38,10 @@ The scaffold is aimed at the active `shadowrun6-eden` Foundry system.
 <details open>
   <summary><strong>Spells</strong></summary>
   as for Core
+</details>
+<details>
+  <summary><strong>Gear - Biotech</strong></summary>
+  as for Core but table goes before textual part and all table rows on same line (do not have the row content be separated by new line)
 </details>
 <details>
   <summary><strong>Gear - Chemicals - Toxin</strong></summary>
@@ -68,6 +76,10 @@ Uzi IV 3P SA/BF/FA 8/8/7/—/— 24(c) 2(L) 455¥
 </details>
 <details>
   <summary><strong>Cyberware - Eyeware</strong></summary>
+  as for Core
+</details>
+<details>
+  <summary><strong>Software</strong></summary>
   as for Core
 </details>
 
