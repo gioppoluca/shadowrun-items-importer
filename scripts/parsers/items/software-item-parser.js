@@ -15,12 +15,14 @@ export class SoftwareItemParser extends BaseItemParser {
     clearsight: "CLEARSIGHT",
     "electronic warfare": "ELECTRONIC_WARFARE",
     evasion: "EVASION",
-    maneuvering: "MANEUVERING",
-    manoeuvring: "MANEUVERING",
+    maneuvering: "MANEUVER",
+    manoeuvring: "MANEUVER",
+    maneuver: "MANEUVER",
+    manoeuvre: "MANEUVER",
     stealth: "STEALTH",
-    "[weapon] targeting": "WEAPON_TARGETING",
-    "weapon targeting": "WEAPON_TARGETING",
-    targeting: "WEAPON_TARGETING"
+    "[weapon] targeting": "TARGETING",
+    "weapon targeting": "TARGETING",
+    targeting: "TARGETING"
   };
 
   static KNOWN_SOFTWARE_CATEGORIES = new Set([
@@ -107,12 +109,27 @@ export class SoftwareItemParser extends BaseItemParser {
     if (!field) return null;
 
     const name = String(field.label ?? "").trim();
-    if (!name) return null;
+    if (!this.isValidSoftwareItemName(name)) return null;
 
     return {
       name,
       value: String(field.value ?? "").trim()
     };
+  }
+
+  isValidSoftwareItemName(name) {
+    const cleanName = String(name ?? "").trim();
+    if (!cleanName) return false;
+
+    // Attribute: is metadata inside autosoft descriptions, not a new software item.
+    if (this.normalizeSoftwareKey(cleanName) === "attribute") return false;
+
+    // Wrapped descriptions can contain sentences followed by Attribute:, for example
+    // "ECM. Attribute: Sensor". The field parser would otherwise see
+    // "ECM. Attribute" as the label and incorrectly start a new item.
+    if (/[.;]/u.test(cleanName)) return false;
+
+    return true;
   }
 
   toFoundryItem(entry, warnings = []) {
@@ -124,8 +141,8 @@ export class SoftwareItemParser extends BaseItemParser {
       warnings.push(`Software category not recognized for "${entry.name}". Empty software type was used.`);
     }
 
-    if (type === "AUTOSOFT" && !subtype) {
-      warnings.push(`Autosoft subtype not recognized for "${entry.name}". Empty software subtype was used.`);
+    if (type === "AUTOSOFT" && subtype === "MANEUVER" && !this.findConfiguredAutosoftSubtypeKey(entry.name)) {
+      warnings.push(`Autosoft subtype not recognized for "${entry.name}". MANEUVER was used as fallback.`);
     }
 
     return {
@@ -188,16 +205,10 @@ export class SoftwareItemParser extends BaseItemParser {
   resolveSoftwareSubtype(name, type) {
     if (type !== "AUTOSOFT") return "";
 
-    const normalized = this.normalizeSoftwareKey(name)
-      .replace(/^\[/u, "")
-      .replace(/\]$/u, "");
-
     const configured = this.findConfiguredAutosoftSubtypeKey(name);
     if (configured) return configured;
 
-    return SoftwareItemParser.AUTOSOFT_SUBTYPE_ALIASES[normalized]
-      ?? SoftwareItemParser.AUTOSOFT_SUBTYPE_ALIASES[this.normalizeSoftwareKey(name)]
-      ?? this.toConstantKey(name);
+    return "MANEUVER";
   }
 
   findConfiguredSoftwareSubtypeKey(label) {
@@ -206,16 +217,12 @@ export class SoftwareItemParser extends BaseItemParser {
   }
 
   findConfiguredAutosoftSubtypeKey(label) {
-    const containers = [
-      CONFIG?.SR6?.SOFTWARE_SUBTYPES?.AUTOSOFT,
-      CONFIG?.SR6?.SOFTWARE_AUTOSOFT_SUBTYPES,
-      CONFIG?.SR6?.AUTOSOFT_SUBTYPES
-    ];
+    const autosoftTypes = CONFIG?.SR6?.AUTOSOFT_TYPES ?? {};
+    const direct = this.findConfigKeyByLabel(label, autosoftTypes);
+    if (direct) return direct;
 
-    for (const container of containers) {
-      const found = this.findConfigKeyByLabel(label, container ?? {});
-      if (found) return found;
-    }
+    const alias = SoftwareItemParser.AUTOSOFT_SUBTYPE_ALIASES[this.normalizeSoftwareKey(label)];
+    if (alias && Object.hasOwn(autosoftTypes, alias)) return alias;
 
     return null;
   }
