@@ -48,6 +48,42 @@ The importer is aimed at the active `shadowrun6-eden` Foundry system.
   as for Core
 </details>
 <details>
+  <summary><strong>Gear - Vehicles</strong></summary>
+BIKES HAND(ON/OFF ROAD) ACCEL-SPEED INTERVAL TOP-SPEED BODY ARMOR PILOT SENSOR SEAT AVAIL COST
+Dodge S... 5/7 4 10 80 2 0 1 0 2 2 3,000¥
+CARS HAND(ON/OFF ROAD) ACCEL SPEED-INTERVAL TOP-SPEED BODY ARMOR PILOT SENSOR SEAT AVAIL COST
+Chrysler-Ni...
+Ford Americar 4/5 9 20 160 11 4 1 2 4 2 16,000¥
+Saeder-Krupp-Bentley Concordat 3/5 18 30 180 14 8 3 3 4 3 65,000¥
+Mitsubishi Nigh...
+TRUCKS AND VANS HAND(ON/OFF ROAD) ACCEL SPEED-INTERVAL TOP-SPEED BODY ARMOR PILOT SENSOR SEAT AVAIL COST
+Toyota Go...
+...
+BOATS HAND(ON/OFF ROAD) ACCEL SPEED-INTERVAL TOP-SPEED BODY ARMOR PILOT SENSOR SEAT AVAIL COST
+Samuvani Criscraft otter 4 10 15 90 6 4 2 2 6 2 25,000¥
+
+
+Ford Americar
+< redacted >
+---
+Saeder-Krupp-Bentley Concordat
+< redacted >
+
+
+OR - not mixed
+
+General Dynamics Flyer 90
+(special operations vehicle)
+HAND ACC SPD-INT TOP-SPD BODY ARM PILOT SENS SEAT AVAIL COST
+3/3 20 25 170 12 6 1 1 5 8 60,000¥
+Standard Equipment: < redacted >
+Note: < redacted >
+
+General Dynamics Flyer 90
+< redacted text >
+
+</details>
+<details>
   <summary><strong>Gear - Weapons</strong></summary>
   as for core - also in multiple batch
 <pre><code class="language-text">
