@@ -96,10 +96,13 @@ export class BaseCyberwareParser extends BaseItemParser {
     return match ? Number(match[0]) : fallback;
   }
 
-  parseCapacity(rawCapacity) {
+  parseCapacity(rawCapacity, rating = 0) {
     const raw = String(rawCapacity ?? "").trim();
     if (!raw || raw === "—" || raw === "-") return 0;
-    return this.extractFirstInteger(raw, 0);
+
+    const ratingValue = Number(rating) || 0;
+    const resolved = raw.replace(/\brating\b/gi, String(ratingValue));
+    return this.extractFirstInteger(resolved, 0);
   }
 
   parseAvailability(rawAvail) {
@@ -184,7 +187,7 @@ export class BaseCyberwareParser extends BaseItemParser {
     for (const rating of ratings) {
       const baseEssence = this.parseEssence(row.essence, rating);
       const basePrice = this.parsePrice(row.cost, rating);
-      const capacity = this.parseCapacity(row.capacity);
+      const capacity = this.parseCapacity(row.capacity, rating);
 
       for (const grade of BaseCyberwareParser.GRADES) {
         const price = Math.round(basePrice.price * grade.costMultiplier);

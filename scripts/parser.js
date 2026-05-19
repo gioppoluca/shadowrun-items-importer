@@ -6,7 +6,7 @@ import { GearChemicalsToxinsParser } from "./parsers/items/gear-chemicals-toxins
 import { SpellItemParser } from "./parsers/items/spell-item-parser.js";
 import { GearWeaponParser } from "./parsers/items/gear-weapon-parser.js";
 import { GearWeaponAccessoryParser } from "./parsers/items/gear-weapon-accessory-parser.js";
-import { BiotechItemParser } from "./parsers/items/biotech-item-parser.js";
+import { GearVehicleItemParser } from "./parsers/items/gear-vehicle-item-parser.js";
 import { GearCyberwareHeadwareParser } from "./parsers/items/cyberware/gear-cyberware-headware-parser.js";
 import { GearCyberwareEyewareParser } from "./parsers/items/cyberware/gear-cyberware-eyeware-parser.js";
 
@@ -27,12 +27,14 @@ export class ShadowrunItemsImporterParser {
       || /^EYEWARE\s+ESSENCE\s+CAPACITY\s+AVAIL\s+COST\b/mi.test(normalizedText);
   }
 
-  isBiotechInput(itemType, rawText) {
+
+  isVehicleInput(itemType, rawText) {
     const normalizedType = String(itemType ?? "").toUpperCase();
     const normalizedText = String(rawText ?? "");
 
-    return normalizedType.includes("BIOLOGY")
-      && /^GEAR\s+AVAIL\s+COST\b/mi.test(normalizedText);
+    return normalizedType.includes("VEHICLES")
+      || /^(?:BIKES|CARS|TRUCKS\s+AND\s+VANS|BOATS|DRONES|AIRCRAFT)\b[\s\S]*?\bHAND\b[\s\S]*?\bCOST\b/mi.test(normalizedText)
+      || /^HAND\s+(?:ACC|ACCEL)\b[\s\S]*?\bCOST\b/mi.test(normalizedText);
   }
 
   isWeaponAccessoryInput(itemType, rawText) {
@@ -66,8 +68,9 @@ export class ShadowrunItemsImporterParser {
       return parser.parse();
     }
 
-    if (this.isBiotechInput(itemType, rawText)) {
-      parser = new BiotechItemParser({ text: rawText, type: itemType, folderId });
+
+    if (this.isVehicleInput(itemType, rawText)) {
+      parser = new GearVehicleItemParser({ text: rawText, type: itemType, folderId });
       return parser.parse();
     }
 
@@ -86,9 +89,14 @@ export class ShadowrunItemsImporterParser {
       case "gear.CHEMICALS.TOXINS":
         parser = new GearChemicalsToxinsParser({ text: rawText, type: itemType, folderId });
         break;
-      case "gear.BIOLOGY.BIOTECH":
-      case "gear.BIOLOGY.SLAP_PATCHES":
-        parser = new BiotechItemParser({ text: rawText, type: itemType, folderId });
+
+      case "gear.VEHICLES.BIKES":
+      case "gear.VEHICLES.CARS":
+      case "gear.VEHICLES.TRUCKS_AND_VANS":
+      case "gear.VEHICLES.BOATS":
+      case "gear.VEHICLES.DRONES":
+      case "gear.VEHICLES.AIRCRAFT":
+        parser = new GearVehicleItemParser({ text: rawText, type: itemType, folderId });
         break;
       case "spell":
         parser = new SpellItemParser({ text: rawText, type: itemType, folderId });

@@ -54,8 +54,8 @@ export class GearWeaponParser extends BaseItemParser {
     const items = [];
     const emittedKeys = new Set();
 
-    for (const block of wantedBlocks) {
-      const rows = this.findMatchingRows(block.name, tableRows);
+    for (const [blockIndex, block] of wantedBlocks.entries()) {
+      const rows = this.findMatchingRows(block.name, tableRows, headerInfo, blockIndex);
       const description = this.descriptionHtml(block.descriptionLines);
 
       if (!rows.length) {
@@ -75,7 +75,7 @@ export class GearWeaponParser extends BaseItemParser {
         emittedKeys.add(key);
 
         items.push(this.toFoundryItem({
-          name: row.name,
+          name: headerInfo.hasTypeColumn ? block.name : row.name,
           description,
           row,
           headerInfo,
@@ -88,13 +88,15 @@ export class GearWeaponParser extends BaseItemParser {
   }
 
   findWeaponTableHeaderIndex(lines) {
-    return lines.findIndex((line) => /^WEAPON\s+DV\b/i.test(line));
+    return lines.findIndex((line) => /^(?:WEAPON|TYPE)\s+DV\b/i.test(line));
   }
 
   parseHeader(header) {
     const normalized = String(header ?? "").toUpperCase();
     return {
-      hasModes: /\bMODES\b/.test(normalized),
+      hasWeaponColumn: /^WEAPON\s+DV\b/i.test(String(header ?? "").trim()),
+      hasTypeColumn: /^TYPE\s+DV\b/i.test(String(header ?? "").trim()),
+      hasModes: /\bMODES?\b/.test(normalized),
       hasAmmo: /\bAMMO\b/.test(normalized)
     };
   }
@@ -132,7 +134,7 @@ export class GearWeaponParser extends BaseItemParser {
     for (const line of tableLines) {
       const cleaned = String(line ?? "").trim();
       if (!cleaned) continue;
-      if (/^WEAPON\s+DV\b/i.test(cleaned)) continue;
+      if (/^(?:WEAPON|TYPE)\s+DV\b/i.test(cleaned)) continue;
 
       buffer.push(cleaned);
 
@@ -187,6 +189,7 @@ export class GearWeaponParser extends BaseItemParser {
     return {
       raw: normalized,
       name,
+      weaponType: headerInfo.hasTypeColumn ? name : "",
       normalizedName: this.normalizeComparableName(name),
       dv,
       modes,
@@ -227,7 +230,12 @@ export class GearWeaponParser extends BaseItemParser {
     return /^(?:SS|SA|BF|FA)(?:\/(?:SS|SA|BF|FA))*$/i.test(String(token ?? ""));
   }
 
-  findMatchingRows(name, rows) {
+  findMatchingRows(name, rows, headerInfo = {}, blockIndex = 0) {
+    if (headerInfo.hasTypeColumn && !headerInfo.hasWeaponColumn) {
+      if (rows.length === 1) return rows;
+      return rows[blockIndex] ? [rows[blockIndex]] : [];
+    }
+
     const wanted = this.normalizeComparableName(name);
     if (!wanted) return [];
 
@@ -377,6 +385,7 @@ export class GearWeaponParser extends BaseItemParser {
       ? [
           row.raw ? `<p><strong>Imported table row:</strong> ${row.raw}</p>` : "",
           row.attackRatings && /rating/i.test(row.attackRatings) ? `<p><strong>Attack ratings formula:</strong> ${row.attackRatings}</p>` : "",
+          row.weaponType ? `<p><strong>Weapon type:</strong> ${row.weaponType}</p>` : "",
           row.cost && /rating/i.test(row.cost) ? `<p><strong>Cost formula:</strong> ${row.cost}</p>` : ""
         ].filter(Boolean).join("")
       : "";
