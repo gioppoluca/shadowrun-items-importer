@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.8] - 2026-05-19
+### :sparkles: New Features
+- [`8465a5a`](https://github.com/gioppoluca/shadowrun-items-importer/commit/8465a5a508b2f7889ac00f1e08b3c09b75d52b38) - vehicles and bodyware *(commit by [@gioppoluca](https://github.com/gioppoluca))*
+
+
 ## [1.13.7] - 2026-05-18
 ### :sparkles: New Features
 - [`130cf7c`](https://github.com/gioppoluca/shadowrun-items-importer/commit/130cf7c813f419e9889d4020a712a531493bdb5e) - added software *(commit by [@gioppoluca](https://github.com/gioppoluca))*
@@ -46,3 +51,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [1.13.5]: https://github.com/gioppoluca/shadowrun-items-importer/compare/1.13.4...1.13.5
 [1.13.6]: https://github.com/gioppoluca/shadowrun-items-importer/compare/1.13.5...1.13.6
 [1.13.7]: https://github.com/gioppoluca/shadowrun-items-importer/compare/1.13.6...1.13.7
+[1.13.8]: https://github.com/gioppoluca/shadowrun-items-importer/compare/1.13.7...1.13.8
