@@ -19,7 +19,8 @@ export class BaseCyberwareParser extends BaseItemParser {
     { key: "used", label: "Used", essenceMultiplier: 1.1, costMultiplier: 0.5, availabilityModifier: -1 },
     { key: "alphaware", label: "Alphaware", essenceMultiplier: 0.8, costMultiplier: 1.2, availabilityModifier: 1 },
     { key: "betaware", label: "Betaware", essenceMultiplier: 0.7, costMultiplier: 1.5, availabilityModifier: 2 },
-    { key: "deltaware", label: "Deltaware", essenceMultiplier: 0.5, costMultiplier: 2.5, availabilityModifier: 3 }
+    { key: "deltaware", label: "Deltaware", essenceMultiplier: 0.5, costMultiplier: 2.5, availabilityModifier: 3 },
+    { key: "gammaware", label: "Gammaware", essenceMultiplier: 0.4, costMultiplier: 5, availabilityModifier: 4 }
   ];
 
   getCyberwareSubtype() {
