@@ -115,6 +115,34 @@ Uzi IV 3P SA/BF/FA 8/8/7/—/— 24(c) 2(L) 455¥
   as for Core
 </details>
 <details>
+  <summary><strong>Cyberware - Bodyware</strong></summary>
+  as for Core
+</details>
+<details>
+  <summary><strong>Cyberware - Earware</strong></summary>
+  as for Core
+</details>
+<details>
+  <summary><strong>Cyberware - Cyberjack</strong></summary>
+  as for Core
+</details>
+<details>
+  <summary><strong>Cyberware - Cyberlimb</strong></summary>
+  as for Core
+</details>
+<details>
+  <summary><strong>Cyberware - Cyberlimb Accessories</strong></summary>
+  as for Core
+</details>
+<details>
+  <summary><strong>Bioware</strong></summary>
+  as for Core
+</details>
+<details>
+  <summary><strong>Foci</strong></summary>
+  as for Core
+</details>
+<details>
   <summary><strong>Software</strong></summary>
   as for Core
 </details>
