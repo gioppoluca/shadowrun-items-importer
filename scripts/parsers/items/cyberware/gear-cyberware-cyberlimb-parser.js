@@ -18,10 +18,10 @@ export class GearCyberwareCyberlimbParser extends BaseCyberwareParser {
 
     const beforeHeader = lines.slice(0, header.startIndex);
     const parsedTable = this.parseCyberlimbTableWithRemainder(lines.slice(header.endIndex + 1));
-    const descriptionSourceLines = this.combineDescriptionSources(beforeHeader, parsedTable.remainingLines);
-    const sections = this.parseDescriptionSections(descriptionSourceLines);
-
     const rows = parsedTable.rows;
+    const descriptionSourceLines = this.combineDescriptionSources(beforeHeader, parsedTable.remainingLines);
+    const { sections, generalDescriptionLines } = this.parseDescriptionSections(descriptionSourceLines, rows);
+
     const items = [];
     const warnings = [];
     const generatedRows = new Set();
@@ -41,7 +41,7 @@ export class GearCyberwareCyberlimbParser extends BaseCyberwareParser {
         generatedRows.add(row);
         items.push(...this.expandCyberwareItem({
           baseName: section.name,
-          descriptionLines: section.descriptionLines,
+          descriptionLines: this.mergeDescriptionLines(generalDescriptionLines, section.descriptionLines),
           row
         }));
       }
@@ -54,7 +54,7 @@ export class GearCyberwareCyberlimbParser extends BaseCyberwareParser {
 
       items.push(...this.expandCyberwareItem({
         baseName: this.cleanCyberwareName(row.name),
-        descriptionLines: [],
+        descriptionLines: generalDescriptionLines,
         row
       }));
     }
@@ -102,13 +102,21 @@ export class GearCyberwareCyberlimbParser extends BaseCyberwareParser {
     const normalized = String(line ?? "").toUpperCase().replace(/\s+/g, " ").trim();
     if (!normalized) return false;
 
-    return normalized.includes("LIMB")
-      || normalized.includes("ESSENCE")
-      || normalized.includes("AVAIL")
-      || normalized.includes("SYNTHETIC")
-      || normalized.includes("OBVIOUS")
-      || normalized.includes("COST")
-      || normalized.includes("CAPACITY");
+    const headerTokenMatches = [
+      /\bLIMB\b/u.test(normalized),
+      /\bESSENCE\b/u.test(normalized),
+      /\bAVAIL\b/u.test(normalized),
+      /\bSYNTHETIC\b/u.test(normalized),
+      /\bOBVIOUS\b/u.test(normalized),
+      /\bCOST\b/u.test(normalized),
+      /\bCAPACITY\b/u.test(normalized)
+    ];
+    const tokenCount = headerTokenMatches.filter(Boolean).length;
+
+    // A split PDF header may contain a standalone "LIMB" line, but descriptive
+    // text such as "Cyberlimbs replace a natural limb..." must not be consumed
+    // as part of the table header.
+    return normalized === "LIMB" || tokenCount >= 2;
   }
 
   isCyberlimbHeaderText(text) {
@@ -131,31 +139,52 @@ export class GearCyberwareCyberlimbParser extends BaseCyberwareParser {
     return before.length ? before : after;
   }
 
-  parseDescriptionSections(lines = []) {
+
+  mergeDescriptionLines(generalDescriptionLines = [], sectionDescriptionLines = []) {
+    const general = generalDescriptionLines.map((line) => String(line ?? "").trim()).filter(Boolean);
+    const section = sectionDescriptionLines.map((line) => String(line ?? "").trim()).filter(Boolean);
+    return [...general, ...section];
+  }
+
+  isCyberlimbFamilyHeading(line) {
+    const normalized = this.normalizeMatchName(line);
+    return normalized === "cyberlimb" || normalized === "cyberlimbs";
+  }
+
+  parseDescriptionSections(lines = [], rows = []) {
     const sections = [];
-    let current = [];
+    const generalDescriptionLines = [];
+    let current = null;
 
     const flush = () => {
-      const clean = current.map((line) => String(line ?? "").trim()).filter(Boolean);
-      current = [];
-      if (!clean.length) return;
-
-      sections.push({
-        name: clean[0],
-        descriptionLines: clean.slice(1)
-      });
+      if (!current) return;
+      sections.push(current);
+      current = null;
     };
 
     for (const line of lines) {
-      if (String(line ?? "").trim() === "---") {
+      const clean = String(line ?? "").trim();
+      if (!clean || clean === "---" || this.isCyberlimbFamilyHeading(clean)) {
+        if (clean === "---") flush();
+        continue;
+      }
+
+      const matchingRows = this.findRowsForSection(clean, rows);
+      if (matchingRows.length) {
         flush();
+        current = { name: clean, descriptionLines: [] };
+        continue;
+      }
+
+      if (current) {
+        current.descriptionLines.push(clean);
       } else {
-        current.push(line);
+        generalDescriptionLines.push(clean);
       }
     }
 
     flush();
-    return sections;
+    return { sections, generalDescriptionLines };
   }
 
   parseCyberlimbTableWithRemainder(lines = []) {

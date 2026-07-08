@@ -21,13 +21,17 @@ export class GearCyberwareBodywareParser extends BaseCyberwareParser {
     const textLines = headerIndex >= 0 ? lines.slice(0, headerIndex) : lines;
     const tableLines = headerIndex >= 0 ? lines.slice(headerIndex + 1) : [];
 
-    const rows = this.parseBodywareTable(tableLines);
-    const variantEffectTables = this.parseVariantEffectTables(textLines);
+    const parsedTable = this.parseBodywareTableWithRemainder(tableLines);
+    const rows = parsedTable.rows;
+    const descriptionSourceLines = this.combineDescriptionSources(textLines, parsedTable.remainingLines);
+
+    const variantEffectTables = this.parseVariantEffectTables(descriptionSourceLines);
     this.applyVariantEffects(rows, variantEffectTables);
 
-    const sections = this.parseDescriptionSections(textLines, rows);
+    const { sections, generalDescriptionLines } = this.parseDescriptionSections(descriptionSourceLines, rows);
     const items = [];
     const warnings = [];
+    const generatedRows = new Set();
 
     for (const section of sections) {
       const matchingRows = this.findRowsForSection(section.name, rows);
@@ -37,21 +41,26 @@ export class GearCyberwareBodywareParser extends BaseCyberwareParser {
       }
 
       for (const row of matchingRows) {
+        generatedRows.add(row);
         items.push(...this.expandCyberwareItem({
           baseName: section.name,
-          descriptionLines: section.descriptionLines,
+          descriptionLines: this.mergeDescriptionLines(generalDescriptionLines, section.descriptionLines),
           row
         }));
       }
     }
 
-    if (!items.length && rows.length) {
-      // Useful fallback while testing: a pasted BODYWARE table without
-      // descriptions still creates the row-derived bodyware items.
+    if (rows.length) {
+      // A pasted BODYWARE/BIOWARE table may have only generic prose, or only a
+      // subset of item-specific sections. Preserve that textual part instead of
+      // falling back to empty descriptions for the remaining rows.
       for (const row of rows) {
+        if (generatedRows.has(row)) continue;
+        if (items.length && !generalDescriptionLines.length) continue;
+
         items.push(...this.expandCyberwareItem({
           baseName: this.cleanCyberwareName(row.name),
-          descriptionLines: [],
+          descriptionLines: generalDescriptionLines,
           row
         }));
       }
@@ -79,13 +88,8 @@ export class GearCyberwareBodywareParser extends BaseCyberwareParser {
   }
 
   parseDescriptionSections(lines = [], rows = []) {
-    const rowBaseNames = new Set(
-      rows
-        .map((row) => this.normalizeMatchName(this.cleanCyberwareName(row.name)))
-        .filter(Boolean)
-    );
-
     const sections = [];
+    const generalDescriptionLines = [];
     let current = null;
     let skippingEffectTable = false;
 
@@ -97,9 +101,13 @@ export class GearCyberwareBodywareParser extends BaseCyberwareParser {
 
     for (const line of lines) {
       const clean = String(line ?? "").trim();
-      if (!clean) continue;
+      if (!clean || clean === "---" || this.isBodywareFamilyHeading(clean)) {
+        if (clean === "---") flush();
+        continue;
+      }
 
       if (this.isVariantEffectHeader(clean)) {
+        flush();
         skippingEffectTable = true;
         continue;
       }
@@ -109,22 +117,22 @@ export class GearCyberwareBodywareParser extends BaseCyberwareParser {
         skippingEffectTable = false;
       }
 
-      const normalized = this.normalizeMatchName(clean);
-      if (rowBaseNames.has(normalized)) {
+      const matchingRows = this.findRowsForSection(clean, rows);
+      if (matchingRows.length) {
         flush();
         current = { name: clean, descriptionLines: [] };
         continue;
       }
 
-      if (!current) {
-        current = { name: clean, descriptionLines: [] };
-      } else {
+      if (current) {
         current.descriptionLines.push(clean);
+      } else {
+        generalDescriptionLines.push(clean);
       }
     }
 
     flush();
-    return sections;
+    return { sections, generalDescriptionLines };
   }
 
   parseBodywareTable(lines = []) {
@@ -137,6 +145,83 @@ export class GearCyberwareBodywareParser extends BaseCyberwareParser {
     }
 
     return rows;
+  }
+
+
+  parseBodywareTableWithRemainder(lines = []) {
+    const rows = [];
+    let buffer = [];
+    let consumed = 0;
+    let startedRows = false;
+
+    const parseBufferedRow = () => {
+      const rawRow = buffer.join(" ").replace(/\s+/g, " ").trim();
+      buffer = [];
+      if (!rawRow) return null;
+      return this.parseBodywareBiowareRow(rawRow) ?? this.parseBodywareRow(rawRow);
+    };
+
+    for (let index = 0; index < lines.length; index += 1) {
+      const clean = String(lines[index] ?? "").trim();
+      if (!clean) {
+        if (!startedRows) consumed = index + 1;
+        continue;
+      }
+
+      buffer.push(clean);
+
+      // Bodyware/Bioware cost cells normally end in ¥. Some PDF/OCR pastes
+      // lose that marker, so we also accept a trailing digit as the end of a
+      // logical row. If that logical row stops parsing after rows have already
+      // started, everything from that point is textual description, not table.
+      if (!/¥\s*$/u.test(clean) && !/\d\s*$/u.test(clean)) continue;
+
+      const row = parseBufferedRow();
+      if (row) {
+        rows.push(row);
+        startedRows = true;
+        consumed = index + 1;
+        continue;
+      }
+
+      if (startedRows) break;
+      consumed = index + 1;
+    }
+
+    if (buffer.length && !startedRows) {
+      const row = parseBufferedRow();
+      if (row) {
+        rows.push(row);
+        consumed = lines.length;
+      }
+    }
+
+    return {
+      rows,
+      remainingLines: lines.slice(consumed)
+    };
+  }
+
+  combineDescriptionSources(beforeHeader = [], afterTable = []) {
+    const before = beforeHeader.map((line) => String(line ?? "").trim()).filter(Boolean);
+    const after = afterTable.map((line) => String(line ?? "").trim()).filter(Boolean);
+
+    if (before.length && after.length) return [...before, "---", ...after];
+    return before.length ? before : after;
+  }
+
+  mergeDescriptionLines(generalDescriptionLines = [], sectionDescriptionLines = []) {
+    const general = generalDescriptionLines.map((line) => String(line ?? "").trim()).filter(Boolean);
+    const section = sectionDescriptionLines.map((line) => String(line ?? "").trim()).filter(Boolean);
+    return [...general, ...section];
+  }
+
+  isBodywareFamilyHeading(line) {
+    const normalized = this.normalizeMatchName(line);
+    return normalized === "bodyware"
+      || normalized === "bioware"
+      || normalized === "standard bioware"
+      || normalized === "cultured bioware";
   }
 
   coalesceTableRows(lines = []) {

@@ -10,8 +10,12 @@ export class QualityItemParser extends BaseItemParser {
     parse() {
         if (!this.ensureText()) return null;
 
-        const lines = this.splitCleanLines();
-        if (!lines.length) {
+        const blocks = this.splitQualityBlocks(this.text);
+        const parsedItems = blocks
+            .map((block) => this.parseQualityBlock(block))
+            .filter(Boolean);
+
+        if (!parsedItems.length) {
             return this.toFoundryItem({
                 name: "Unnamed Quality",
                 description: "",
@@ -20,6 +24,37 @@ export class QualityItemParser extends BaseItemParser {
                 category: "ADVANTAGE"
             });
         }
+
+        return parsedItems.length === 1 ? parsedItems[0] : parsedItems;
+    }
+
+    splitQualityBlocks(text) {
+        const blocks = [];
+        let current = [];
+
+        const flush = () => {
+            const cleaned = current
+                .map((line) => String(line ?? "").trim())
+                .filter((line) => line.length > 0);
+            current = [];
+            if (cleaned.length) blocks.push(cleaned);
+        };
+
+        for (const line of this.normalizeLineEndings(text).split("\n")) {
+            const cleaned = this.cleanLine(line);
+            if (/^-{3,}$/u.test(cleaned)) {
+                flush();
+            } else {
+                current.push(cleaned);
+            }
+        }
+        flush();
+
+        return blocks;
+    }
+
+    parseQualityBlock(lines) {
+        if (!Array.isArray(lines) || !lines.length) return null;
 
         const name = lines[0];
         const remaining = lines.slice(1);

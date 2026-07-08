@@ -11,7 +11,9 @@ export class CritterPowerItemParser extends BaseItemParser {
     if (!lines.length) return [];
 
     const entries = this.parseCritterPowerEntries(lines);
-    return entries.map((entry) => this.toFoundryItem(entry));
+    const items = entries.map((entry) => this.toFoundryItem(entry));
+
+    return items.length === 1 ? items[0] : items;
   }
 
   parseCritterPowerEntries(lines = []) {
@@ -19,6 +21,11 @@ export class CritterPowerItemParser extends BaseItemParser {
     let index = 0;
 
     while (index < lines.length) {
+      if (this.isSeparatorLine(lines[index])) {
+        index += 1;
+        continue;
+      }
+
       const name = this.stripBulletMarker(lines[index]);
       if (!name) {
         index += 1;
@@ -35,12 +42,13 @@ export class CritterPowerItemParser extends BaseItemParser {
       const statLine = lines[headerIndex + 1] ?? "";
       const stats = this.parseStatLine(statLine);
 
-      let descriptionStart = headerIndex + 2;
+      const descriptionStart = headerIndex + 2;
       let nextItemStart = this.findNextItemStart(lines, descriptionStart);
       if (nextItemStart === -1) nextItemStart = lines.length;
 
       const descriptionLines = lines
         .slice(descriptionStart, nextItemStart)
+        .filter((line) => !this.isSeparatorLine(line))
         .map((line) => this.stripBulletMarker(line))
         .filter(Boolean);
 
@@ -111,6 +119,10 @@ export class CritterPowerItemParser extends BaseItemParser {
     if (!raw) return [];
 
     return raw
+      .replace(/LOS\s*\(\s*A\s*\)/giu, "LOS_AREA")
+      .replace(/\b(Self|Touch|LOS_AREA|LOS)\b(?=\S)/giu, "$1 ")
+      .replace(/\b(Major|Minor|Passive|Free)\b(?=\S)/giu, "$1 ")
+      .replace(/\b([PM])\b(?=\S)/giu, "$1 ")
       .replace(/\s+/g, " ")
       .trim()
       .split(/\s+/u)
@@ -125,7 +137,7 @@ export class CritterPowerItemParser extends BaseItemParser {
   }
 
   mapAction(actionToken) {
-    const value = String(actionToken ?? "").trim().toLowerCase();
+    const value = String(actionToken ?? "").trim().toLowerCase().replace(/[\s-]+/gu, "_");
     if (value.startsWith("major")) return "major_action";
     if (value.startsWith("minor")) return "minor_action";
     if (value.startsWith("passive")) return "passive";
@@ -136,20 +148,20 @@ export class CritterPowerItemParser extends BaseItemParser {
   mapRange(rangeToken) {
     const value = String(rangeToken ?? "").trim().toUpperCase();
     if (value === "LOS") return "line_of_sight";
-    if (value === "LOS(A)" || value === "LOS_AREA" || value === "LOS (A)") return "line_of_sight_area";
-    if (value === "SELF") return "self";
+    if (value === "LOS_AREA" || value === "LOS(A)" || value === "LOS (A)") return "line_of_sight_area";
+    if (value === "SELF" || value === "S") return "self";
     if (value === "TOUCH" || value === "T") return "touch";
     return value ? value.toLowerCase() : "self";
   }
 
   mapDuration(durationToken) {
-    const value = String(durationToken ?? "").trim().toLowerCase();
+    const value = String(durationToken ?? "").trim().toLowerCase().replace(/[\s-]+/gu, "_");
     if (!value) return "instantaneous";
-    if (value.startsWith("instant")) return "instantaneous";
-    if (value.startsWith("sustain")) return "sustained";
-    if (value.startsWith("permanent")) return "permanent";
+    if (value.startsWith("instant") || value === "i") return "instantaneous";
+    if (value.startsWith("sustain") || value === "s") return "sustained";
+    if (value.startsWith("permanent") || value === "p") return "permanent";
     if (value.startsWith("special")) return "special";
-    return value.replace(/\s+/gu, "_");
+    return value;
   }
 
   linesToHtml(lines = []) {
@@ -164,6 +176,10 @@ export class CritterPowerItemParser extends BaseItemParser {
       .join(" ")
       .replace(/\s+/g, " ")
       .trim();
+  }
+
+  isSeparatorLine(line) {
+    return /^-{3,}\s*$/u.test(String(line ?? "").trim());
   }
 
   toFoundryItem(entry) {

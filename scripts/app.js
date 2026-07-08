@@ -174,23 +174,24 @@ export class ShadowrunItemsImporterApp extends HandlebarsApplicationMixin(Applic
       if (!parsedObject) return;
 
       const parsedObjects = Array.isArray(parsedObject) ? parsedObject : [parsedObject];
-      const createdItems = [];
+      const createdDocuments = [];
 
-      for (const itemData of parsedObjects) {
-        const created = await app.createItemDocument(itemData, folderId || null);
-        createdItems.push(created);
+      for (const documentData of parsedObjects) {
+        const created = await app.createImportedDocument(documentData, folderId || null);
+        createdDocuments.push(created);
 
-        const warnings = itemData.flags?.[SII.MODULE_ID]?.warnings ?? [];
+        const warnings = documentData.flags?.[SII.MODULE_ID]?.warnings ?? [];
         for (const warning of warnings) {
           ui.notifications?.warn(warning);
         }
       }
 
-      if (createdItems.length === 1) {
-        ui.notifications?.info(`Created item: ${createdItems[0].name}`);
-        await createdItems[0].sheet.render(true);
+      if (createdDocuments.length === 1) {
+        const label = app.labelForCreatedDocument(createdDocuments[0]);
+        ui.notifications?.info(`Created ${label}: ${createdDocuments[0].name}`);
+        await createdDocuments[0].sheet.render(true);
       } else {
-        ui.notifications?.info(`Created ${createdItems.length} items.`);
+        ui.notifications?.info(app.creationSummary(createdDocuments));
       }
 
       app.close();
@@ -198,6 +199,33 @@ export class ShadowrunItemsImporterApp extends HandlebarsApplicationMixin(Applic
       console.error("Shadowrun importer failed", error);
       ui.notifications?.error(`Import failed: ${error.message}`);
     }
+  }
+
+  async createImportedDocument(documentData, itemFolderId) {
+    const documentType = this.resolveDocumentType(documentData);
+
+    if (documentType === "Actor") {
+      return this.createActorDocument(documentData, this.resolveActorFolderId(documentData));
+    }
+
+    return this.createItemDocument(documentData, itemFolderId);
+  }
+
+  resolveDocumentType(documentData) {
+    const explicitType = documentData?.flags?.[SII.MODULE_ID]?.documentType;
+    if (explicitType === "Actor" || explicitType === "Item") return explicitType;
+
+    if (documentData?.type && CONFIG.Actor?.typeLabels?.[documentData.type] && !CONFIG.Item?.typeLabels?.[documentData.type]) {
+      return "Actor";
+    }
+
+    return "Item";
+  }
+
+  resolveActorFolderId(_actorData) {
+    // Vehicles are intentionally created at actor-root level for now.
+    // Keeping this as a method makes it easy to route them to Actor folders later.
+    return null;
   }
 
   async createItemDocument(itemData, folderId) {
@@ -212,5 +240,40 @@ export class ShadowrunItemsImporterApp extends HandlebarsApplicationMixin(Applic
     }
 
     return created;
+  }
+
+  async createActorDocument(actorData, actorFolderId = null) {
+    const payload = foundry.utils.deepClone(actorData);
+    const normalizedFolderId = actorFolderId || null;
+    payload.folder = normalizedFolderId;
+
+    const created = await Actor.create(payload);
+
+    if (normalizedFolderId && created.folder?.id !== normalizedFolderId) {
+      await created.update({ folder: normalizedFolderId });
+    }
+
+    return created;
+  }
+
+  labelForCreatedDocument(document) {
+    const documentName = document?.documentName || document?.constructor?.documentName || "document";
+    return String(documentName).toLowerCase();
+  }
+
+  creationSummary(documents = []) {
+    const counts = documents.reduce((acc, document) => {
+      const documentName = document?.documentName || document?.constructor?.documentName || "Document";
+      acc[documentName] = (acc[documentName] ?? 0) + 1;
+      return acc;
+    }, {});
+
+    const parts = Object.entries(counts).map(([documentName, count]) => {
+      const label = String(documentName).toLowerCase();
+      const plural = count === 1 ? label : `${label}s`;
+      return `${count} ${plural}`;
+    });
+
+    return `Created ${parts.join(" and ")}.`;
   }
 }

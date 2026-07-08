@@ -64,16 +64,18 @@ export class GearElectronicsDeviceTableParser extends BaseItemParser {
   findElectronicsTableHeader(lines) {
     for (let startIndex = 0; startIndex < lines.length; startIndex += 1) {
       const line = String(lines[startIndex] ?? "").trim();
-      if (!/^ITEM\b/i.test(line)) continue;
+      if (!/\bITEM\b/i.test(line)) continue;
 
       let headerText = "";
       for (let endIndex = startIndex; endIndex < Math.min(lines.length, startIndex + 8); endIndex += 1) {
         headerText = `${headerText} ${lines[endIndex]}`.replace(/\s+/g, " ").trim();
         const normalized = headerText.toUpperCase();
 
-        const hasExpectedAttributes = !this.expectedAttributeLabel
-          || normalized.includes(`ATTRIBUTES (${this.expectedAttributeLabel.toUpperCase()})`)
-          || normalized.includes("ATTRIBUTES");
+        const expectedAttributeLabel = String(this.expectedAttributeLabel ?? "").toUpperCase().replace(/\s+/g, "");
+        const normalizedCompact = normalized.replace(/\s+/g, "");
+        const hasExpectedAttributes = expectedAttributeLabel
+          ? normalizedCompact.includes(`ATTRIBUTES(${expectedAttributeLabel})`)
+          : normalized.includes("ATTRIBUTES");
 
         if (
           normalized.includes("ITEM")
@@ -99,6 +101,8 @@ export class GearElectronicsDeviceTableParser extends BaseItemParser {
     for (const line of tableLines) {
       const cleaned = String(line ?? "").trim();
       if (!cleaned) continue;
+
+      if (this.isNextElectronicsTableStart(cleaned)) break;
       if (this.looksLikeHeaderFragment(cleaned)) continue;
 
       buffer.push(cleaned);
@@ -116,6 +120,19 @@ export class GearElectronicsDeviceTableParser extends BaseItemParser {
     }
 
     return rows;
+  }
+
+  isNextElectronicsTableStart(line) {
+    const normalized = String(line ?? "").trim().toUpperCase().replace(/\s+/g, " ");
+    if (!normalized) return false;
+
+    const sectionMatch = normalized.match(/^(COMMLINKS?|CYBERDECKS?)\b/u);
+    if (sectionMatch) {
+      const nextSubtype = sectionMatch[1].startsWith("CYBERDECK") ? "CYBERDECK" : "COMMLINK";
+      return nextSubtype !== this.gearSubtype;
+    }
+
+    return /\bITEM\b.*\bDEVICE RATING\b.*\bATTRIBUTES\b/u.test(normalized);
   }
 
   looksLikeHeaderFragment(line) {

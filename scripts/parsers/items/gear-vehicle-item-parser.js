@@ -53,19 +53,24 @@ export class GearVehicleItemParser extends BaseItemParser {
       });
     }
 
-    const items = rows.map((row) => {
+    const documents = rows.flatMap((row) => {
       const description = descriptions.get(row.normalizedName) || "";
-      return this.toFoundryItem({ row, description, accessories: row.accessories || "" });
+      const accessories = row.accessories || "";
+      return [
+        this.toFoundryItem({ row, description, accessories }),
+        this.toFoundryActor({ row, description, accessories })
+      ];
     });
 
-    return items.length === 1 ? items[0] : items;
+    return documents.length === 1 ? documents[0] : documents;
   }
 
   filterRowsByRequestedSubtype(rows) {
-    const subtype = this.normalizeSubtypeKey(this.requestedSubtype);
-    if (!subtype) return rows;
-    const matching = rows.filter((row) => this.normalizeSubtypeKey(row.subtype) === subtype);
-    return matching.length ? matching : rows;
+    // Vehicle tables carry their own category in the first header cell
+    // (for example CARS, ROTORCRAFT, MINIDRONES). Do not let the
+    // importer dropdown override that: the selected subtype is only used
+    // as a fallback for single stat blocks that have no category header.
+    return rows;
   }
 
   parseVehicleRows(lines = []) {
@@ -183,6 +188,7 @@ export class GearVehicleItemParser extends BaseItemParser {
 
     return {
       label: category.label,
+      gearType: category.gearType || "VEHICLES",
       subtype: category.subtype,
       vtype: category.vtype,
       trailingData
@@ -194,7 +200,12 @@ export class GearVehicleItemParser extends BaseItemParser {
     const upper = line.toUpperCase();
     if (!/^HAND\b/u.test(upper) || !/\bCOST\b/u.test(upper)) return null;
     if (!/(?:\bACC\b|\bACCEL\b)/u.test(upper)) return null;
-    return { subtype: this.requestedSubtype || "CARS", vtype: this.vtypeForSubtype(this.requestedSubtype || "CARS") };
+    const subtype = this.requestedSubtype || "CARS";
+    return {
+      gearType: this.gearTypeForSubtype(subtype),
+      subtype,
+      vtype: this.vtypeForSubtype(subtype)
+    };
   }
 
   parseSingleVehicleBlock(lines, headerIndex, header) {
@@ -220,6 +231,7 @@ export class GearVehicleItemParser extends BaseItemParser {
 
     const section = {
       label: this.labelForSubtype(header.subtype),
+      gearType: header.gearType || this.gearTypeForSubtype(header.subtype),
       subtype: this.normalizeSubtypeKey(header.subtype) || "CARS",
       vtype: header.vtype || this.vtypeForSubtype(header.subtype)
     };
@@ -258,15 +270,26 @@ export class GearVehicleItemParser extends BaseItemParser {
   }
 
   detectVehicleCategory(upperLine) {
-    const normalized = String(upperLine ?? "").replace(/\s+/gu, " ").trim();
+    const normalized = String(upperLine ?? "")
+      .replace(/[\u00AD\uFFFE\uFFFD]/gu, "")
+      .replace(/\s+/gu, " ")
+      .trim();
 
     const categories = [
-      { label: "Trucks and Vans", subtype: "TRUCKS_AND_VANS", vtype: "GROUND", pattern: /^TRUCKS\s+AND\s+VANS\b/u },
-      { label: "Bikes", subtype: "BIKES", vtype: "GROUND", pattern: /^BIKES\b/u },
-      { label: "Cars", subtype: "CARS", vtype: "GROUND", pattern: /^CARS\b/u },
-      { label: "Boats", subtype: "BOATS", vtype: "WATER", pattern: /^BOATS\b/u },
-      { label: "Drones", subtype: "DRONES", vtype: "DRONE", pattern: /^DRONES\b/u },
-      { label: "Aircraft", subtype: "AIRCRAFT", vtype: "AIR", pattern: /^AIRCRAFT\b/u }
+      { label: "Trucks and Vans", gearType: "VEHICLES", subtype: "TRUCKS", vtype: "GROUND", pattern: /^TRUCKS\s+AND\s+VANS\b/u },
+      { label: "Fixed-Wing Aircraft", gearType: "VEHICLES", subtype: "FIXED_WING", vtype: "AIR", pattern: /^FIXED\s*[-–—]?\s*WING\s+AIRCRAFT\b/u },
+      { label: "VTOL/VSTOL", gearType: "VEHICLES", subtype: "VTOL", vtype: "AIR", pattern: /^VTOL\s*\/\s*VSTOL\b/u },
+      { label: "Microdrones", gearType: "DRONES", subtype: "MICRODRONES", vtype: "AUTO", pattern: /^MICRODRONES\b/u },
+      { label: "Minidrones", gearType: "DRONES", subtype: "MINIDRONES", vtype: "AUTO", pattern: /^MINIDRONES\b/u },
+      { label: "Small Drones", gearType: "DRONES", subtype: "SMALL_DRONES", vtype: "AUTO", pattern: /^SMALL\s+DRONES\b/u },
+      { label: "Medium Drones", gearType: "DRONES", subtype: "MEDIUM_DRONES", vtype: "AUTO", pattern: /^MEDIUM\s+DRONES\b/u },
+      { label: "Large Drones", gearType: "DRONES", subtype: "LARGE_DRONES", vtype: "AUTO", pattern: /^LARGE\s+DRONES\b/u },
+      { label: "Submarines", gearType: "VEHICLES", subtype: "SUBMARINES", vtype: "WATER", pattern: /^SUBMARINES\b/u },
+      { label: "Rotorcraft", gearType: "VEHICLES", subtype: "ROTORCRAFT", vtype: "AIR", pattern: /^ROTORCRAFT\b/u },
+      { label: "Bikes", gearType: "VEHICLES", subtype: "BIKES", vtype: "GROUND", pattern: /^BIKES\b/u },
+      { label: "Cars", gearType: "VEHICLES", subtype: "CARS", vtype: "GROUND", pattern: /^CARS\b/u },
+      { label: "Boats", gearType: "VEHICLES", subtype: "BOATS", vtype: "WATER", pattern: /^BOATS\b/u },
+      { label: "Aircraft", gearType: "VEHICLES", subtype: "FIXED_WING", vtype: "AIR", pattern: /^AIRCRAFT\b/u }
     ];
 
     return categories.find((category) => category.pattern.test(normalized)) ?? null;
@@ -319,17 +342,26 @@ export class GearVehicleItemParser extends BaseItemParser {
     const handlingParts = handling.split("/").map((value) => this.toNumber(value));
     const handlOn = handlingParts[0] ?? 0;
     const handlOff = handlingParts[1] ?? handlOn;
+    const vtype = this.resolveVehicleMovementType({ section, handling });
 
     return {
       raw: row,
       name,
       normalizedName: this.normalizeComparableName(name),
       categoryLabel: section.label,
+      gearType: section.gearType || this.gearTypeForSubtype(section.subtype),
       subtype: section.subtype,
-      vtype: section.vtype,
+      vtype,
       handling,
       handlOn,
       handlOff,
+      accelRaw: accel,
+      speedIntervalRaw: speedInterval,
+      topSpeedRaw: topSpeed,
+      bodyRaw: body,
+      armorRaw: armor,
+      pilotRaw: pilot,
+      sensorRaw: sensor,
       accel: this.toNumber(accel),
       speedInterval: this.toNumber(speedInterval),
       topSpeed: this.toNumber(topSpeed),
@@ -414,6 +446,7 @@ export class GearVehicleItemParser extends BaseItemParser {
   normalizeTableRow(row) {
     return String(row ?? "")
       .replace(/\u00A0/gu, " ")
+      .replace(/[\u00AD\uFFFE\uFFFD]/gu, "")
       .replace(/[–—]/gu, "—")
       .replace(/\bSPD\s*[- ]\s*INT\b/giu, "SPEED-INTERVAL")
       .replace(/\bSPEED\s*[- ]\s*INTERVAL\b/giu, "SPEED-INTERVAL")
@@ -429,7 +462,7 @@ export class GearVehicleItemParser extends BaseItemParser {
   }
 
   looksLikeAvailability(token) {
-    return /^(?:\d+|[-–—])(?:\([A-Z]\))?$/iu.test(String(token ?? ""));
+    return /^(?:\d+(?:\/\d+)*|[-–—])(?:\([A-Z]\))?$/iu.test(String(token ?? ""));
   }
 
   parseCost(rawCost) {
@@ -439,16 +472,17 @@ export class GearVehicleItemParser extends BaseItemParser {
     const withoutCurrency = original.replace(/¥/gu, "").trim();
     if (/[()+x]/iu.test(withoutCurrency)) return { price: 0, priceDef: original };
 
-    const normalizedNumber = withoutCurrency.replace(/[,_\s]/gu, "");
+    const firstPrice = withoutCurrency.split("/")[0] ?? withoutCurrency;
+    const normalizedNumber = firstPrice.replace(/[,_\s]/gu, "");
     const value = Number(normalizedNumber);
     return {
       price: Number.isFinite(value) ? value : 0,
-      priceDef: Number.isFinite(value) ? value : original
+      priceDef: Number.isFinite(value) && !withoutCurrency.includes("/") ? value : original
     };
   }
 
   toNumber(value, fallback = 0) {
-    const normalized = String(value ?? "").replace(/,/gu, "").trim();
+    const normalized = String(value ?? "").split("/")[0].replace(/,/gu, "").trim();
     const number = Number(normalized);
     return Number.isFinite(number) ? number : fallback;
   }
@@ -475,20 +509,50 @@ export class GearVehicleItemParser extends BaseItemParser {
     const labels = {
       BIKES: "Bikes",
       CARS: "Cars",
+      TRUCKS: "Trucks and Vans",
       TRUCKS_AND_VANS: "Trucks and Vans",
       BOATS: "Boats",
-      DRONES: "Drones",
-      AIRCRAFT: "Aircraft"
+      SUBMARINES: "Submarines",
+      FIXED_WING: "Fixed-Wing Aircraft",
+      ROTORCRAFT: "Rotorcraft",
+      VTOL: "VTOL/VSTOL",
+      AIRCRAFT: "Aircraft",
+      MICRODRONES: "Microdrones",
+      MINIDRONES: "Minidrones",
+      SMALL_DRONES: "Small Drones",
+      MEDIUM_DRONES: "Medium Drones",
+      LARGE_DRONES: "Large Drones",
+      DRONES: "Drones"
     };
     return labels[key] || "Vehicles";
   }
 
   vtypeForSubtype(subtype) {
     const key = this.normalizeSubtypeKey(subtype);
-    if (key === "BOATS") return "WATER";
-    if (key === "DRONES") return "DRONE";
-    if (key === "AIRCRAFT") return "AIR";
+    if (key === "BOATS" || key === "SUBMARINES" || key === "PWC" || key === "SHIPS") return "WATER";
+    if (key === "FIXED_WING" || key === "ROTORCRAFT" || key === "VTOL" || key === "AIRSHIP" || key === "AIRCRAFT") return "AIR";
+    if (["MICRODRONES", "MINIDRONES", "SMALL_DRONES", "MEDIUM_DRONES", "LARGE_DRONES", "DRONES"].includes(key)) return "AUTO";
     return "GROUND";
+  }
+
+  gearTypeForSubtype(subtype) {
+    const key = this.normalizeSubtypeKey(subtype);
+    if (["MICRODRONES", "MINIDRONES", "SMALL_DRONES", "MEDIUM_DRONES", "LARGE_DRONES", "DRONES"].includes(key)) return "DRONES";
+    return "VEHICLES";
+  }
+
+  resolveVehicleMovementType({ section = {}, handling = "" } = {}) {
+    const fixed = String(section.vtype ?? "").toUpperCase();
+    if (fixed === "GROUND" || fixed === "WATER" || fixed === "AIR") return fixed;
+
+    // Core Rulebook drone rows use a split Handling value for ground drones
+    // (on-road/off-road) and a single Handling value for flying drones.
+    // There are no aquatic drones in the core vehicle table; future books can
+    // still force WATER through a category override if needed.
+    if (fixed === "AUTO" && String(handling ?? "").includes("/")) return "GROUND";
+    if (fixed === "AUTO") return "AIR";
+
+    return this.vtypeForSubtype(section.subtype);
   }
 
   titleCaseLabel(value) {
@@ -520,6 +584,243 @@ export class GearVehicleItemParser extends BaseItemParser {
     return super.extractFirstInteger(text, fallback);
   }
 
+
+  toFoundryActor({ name, description = "", row = null, accessories = "", warnings = [] } = {}) {
+    const actorName = name || row?.name || "Unnamed Vehicle";
+    const img = this.actorImageForRow(row);
+    const condition = this.vehicleConditionMonitor(row?.body ?? 0);
+    const tokenSize = this.tokenSizeForRow(row);
+
+    return {
+      name: actorName,
+      type: "Vehicle",
+      img,
+      system: {
+        physical: {
+          base: condition,
+          mod: 0,
+          modString: "",
+          value: condition,
+          dmg: 0,
+          max: condition * 2
+        },
+        stun: {
+          base: condition,
+          mod: 0,
+          modString: "",
+          value: condition,
+          dmg: 0,
+          max: condition * 2
+        },
+        overflow: {
+          mod: 0,
+          modString: "",
+          value: 0,
+          dmg: 0,
+          max: 32
+        },
+        edge: {
+          value: 0,
+          max: 1
+        },
+        skills: {
+          piloting: {
+            points: 0,
+            modifier: 0,
+            pool: 0
+          },
+          evasion: {
+            points: 0,
+            modifier: 0,
+            pool: 0
+          },
+          perception: {
+            points: 0,
+            modifier: 0,
+            pool: 0
+          },
+          cracking: {
+            points: 0,
+            modifier: 0,
+            pool: 0
+          },
+          stealth: {
+            points: 0,
+            modifier: 0,
+            pool: 0
+          }
+        },
+        handlOn: row?.handlOn ?? 0,
+        handlOff: row?.handlOff ?? 0,
+        accOn: row?.accel ?? 0,
+        accOff: row?.accel ?? 0,
+        spdiOn: row?.speedInterval ?? 0,
+        spdiOff: row?.speedInterval ?? 0,
+        tspd: row?.topSpeed ?? 0,
+        bod: row?.body ?? 0,
+        arm: row?.armor ?? 0,
+        pil: row?.pilot ?? 0,
+        sen: row?.sensor ?? 0,
+        sea: this.extractFirstInteger(row?.seat, 0),
+        vtype: this.actorVtypeForRow(row),
+        vehicle: {
+          belongs: "",
+          opMode: "manual",
+          offRoad: false,
+          speed: 0
+        },
+        notes: this.actorNotesHtml({ row, description, accessories })
+      },
+      prototypeToken: this.toPrototypeToken({ name: actorName, img, width: tokenSize.width, height: tokenSize.height }),
+      items: [],
+      effects: [],
+      folder: null,
+      flags: {
+        "shadowrun-items-importer": {
+          documentType: "Actor",
+          sourceParser: this.constructor.name,
+          tableRow: row,
+          category: row?.categoryLabel ?? "",
+          warnings
+        }
+      }
+    };
+  }
+
+  vehicleConditionMonitor(body) {
+    const bodyValue = this.toNumber(body, 0);
+    return 8 + Math.ceil(bodyValue / 2);
+  }
+
+  actorVtypeForRow(row) {
+    const vtype = this.normalizeSubtypeKey(row?.vtype);
+
+    if (vtype === "WATER") return "watercraft";
+    if (vtype === "AIR") return "aircraft";
+    return "ground_craft";
+  }
+
+  actorImageForRow(_row) {
+    return "systems/shadowrun6-eden/icons/compendium/black-chrome/badger-corporate-bus.svg";
+  }
+
+  tokenSizeForRow(row) {
+    const subtype = this.normalizeSubtypeKey(row?.subtype);
+    if (subtype === "BIKES") return { width: 1, height: 2 };
+    if (subtype === "TRUCKS" || subtype === "TRUCKS_AND_VANS") return { width: 3, height: 5 };
+    if (subtype === "BOATS" || subtype === "SUBMARINES") return { width: 3, height: 6 };
+    if (subtype === "FIXED_WING" || subtype === "ROTORCRAFT" || subtype === "VTOL" || subtype === "AIRCRAFT") return { width: 4, height: 4 };
+    if (subtype === "MEDIUM_DRONES") return { width: 2, height: 2 };
+    if (subtype === "LARGE_DRONES") return { width: 2, height: 3 };
+    if (subtype.endsWith("DRONES") || subtype === "DRONES") return { width: 1, height: 1 };
+    return { width: 2, height: 3 };
+  }
+
+  actorNotesHtml({ row = null, description = "", accessories = "" } = {}) {
+    const parts = [];
+    if (description) parts.push(description);
+    if (accessories) parts.push(accessories);
+    if (row?.raw) parts.push(`<p><strong>Vehicle table row:</strong> ${row.raw}</p>`);
+    return parts.join("");
+  }
+
+  toPrototypeToken({ name, img, width, height }) {
+    return {
+      name,
+      displayName: 20,
+      actorLink: false,
+      width,
+      height,
+      texture: {
+        src: img,
+        anchorX: 0.5,
+        anchorY: 0.5,
+        offsetX: 0,
+        offsetY: 0,
+        fit: "contain",
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0,
+        tint: "#ffffff",
+        alphaThreshold: 0.75
+      },
+      lockRotation: false,
+      rotation: 0,
+      alpha: 1,
+      disposition: 0,
+      displayBars: 0,
+      bar1: {
+        attribute: "physical"
+      },
+      bar2: {
+        attribute: "stun"
+      },
+      light: {
+        negative: false,
+        priority: 0,
+        alpha: 0.5,
+        angle: 360,
+        bright: 0,
+        color: null,
+        coloration: 1,
+        dim: 0,
+        attenuation: 0.5,
+        luminosity: 0.5,
+        saturation: 0,
+        contrast: 0,
+        shadows: 0,
+        animation: {
+          type: null,
+          speed: 5,
+          intensity: 5,
+          reverse: false
+        },
+        darkness: {
+          min: 0,
+          max: 1
+        }
+      },
+      sight: {
+        enabled: true,
+        range: 0,
+        angle: 360,
+        visionMode: "basic",
+        color: null,
+        attenuation: 0.1,
+        brightness: 0,
+        saturation: 0,
+        contrast: 0
+      },
+      detectionModes: [],
+      occludable: {
+        radius: 0
+      },
+      ring: {
+        enabled: false,
+        colors: {
+          ring: null,
+          background: null
+        },
+        effects: 1,
+        subject: {
+          scale: 1,
+          texture: null
+        }
+      },
+      turnMarker: {
+        mode: 1,
+        animation: null,
+        src: null,
+        disposition: false
+      },
+      movementAction: null,
+      flags: {},
+      randomImg: false,
+      appendNumber: false,
+      prependAdjective: false
+    };
+  }
+
   toFoundryItem({ name, description = "", row = null, accessories = "", warnings = [] } = {}) {
     const parsedCost = this.parseCost(row?.cost);
 
@@ -535,7 +836,7 @@ export class GearVehicleItemParser extends BaseItemParser {
         modifier: 0,
         wild: false,
         pool: 0,
-        type: "VEHICLES",
+        type: row?.gearType || this.gearType || this.gearTypeForSubtype(this.requestedSubtype) || "VEHICLES",
         subtype: row?.subtype || this.requestedSubtype || "CARS",
         count: 0,
         countable: false,
@@ -598,6 +899,7 @@ export class GearVehicleItemParser extends BaseItemParser {
       folder: this.folderId ?? null,
       flags: {
         "shadowrun-items-importer": {
+          documentType: "Item",
           sourceParser: this.constructor.name,
           tableRow: row,
           category: row?.categoryLabel ?? "",
