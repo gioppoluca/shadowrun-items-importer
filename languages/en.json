@@ -36,7 +36,7 @@
   "shadowrun-items-importer.button.directoryActors": "Import Shadowrun Actor",
   "shadowrun-items-importer.button.importActor": "Import Actor",
   "shadowrun-items-importer.label.actorType": "Actor type",
-  "shadowrun-items-importer.placeholderActor": "Paste a Shadowrun 6e NPC stat block here.\n\nExample:\nHUMANIS GOON\nB A R S W L I C ESS\n2 2 2 2 2 2 2 1 6\nDR I/ID AC CM MOVE\n2 4/1 A1, I2 9 10/15/+1\nSkills: Athletics 1, Close Combat 3, Influence 1 (Intimidation +2)\nGear: Commlink (Device Rating 1)\nWeapons:\nClub [Club, DV 3S, Attack Ratings 6/—/—/—/—]",
+  "shadowrun-items-importer.placeholderActor": "Paste a Shadowrun 6e NPC, Critter, or Spirit stat block here.\n\nNPC example:\nHUMANIS GOON\nB A R S W L I C ESS\n2 2 2 2 2 2 2 1 6\nDR I/ID AC CM MOVE\n2 4/1 A1, I2 9 10/15/+1\nSkills: Athletics 1, Close Combat 3, Influence 1 (Intimidation +2)\nGear: Commlink (Device Rating 1)\nWeapons:\nClub [Club, DV 3S, Attack Ratings 6/—/—/—/—]\n\nCritter example:\ndog\nB A R S W L I C ESS\n3 2 3 2 2 2 3 3 6\nI/ID AC CM MOVE\n6/1 A1, I2 10 10/20/+3\nDefense Rating: 4 (Armor: 1)\nSkills: Athletics 5, Close Combat 4, Perception 5 (Smell +2)\nPowers: Armor 1, Enhanced Senses (Hearing, Smell), Natural Weapon\nAttack: Claws/Bite: DV 2P, Attack Ratings 5/—/—/—/—\n\nSpirit example:\nSPIRITS OF AIR\nB A R S W L I C M ESS\nF–2 F+3 F+4 F–3 F F F F F F\nAC CM MOVE\nA1, I3 (F/2)+8 5/10/+5\nInitiative: [(F x 2) + 4] + 2D6\nAstral Initiative: (F x 2) + 3D6\nDefense Rating: F – 2\nSkills: Astral, Athletics, Close Combat, Exotic Ranged Weapon, Perception\nPowers: Accident, Astral Form, Concealment\nOptional Powers: Elemental Attack (Cold), Energy Aura",
   "shadowrun-items-importer.notifications.itemImporterReady": "Item importer opened.",
   "shadowrun-items-importer.notifications.actorImporterReady": "Actor importer opened.",
   "shadowrun-items-importer.button.previewActor": "Parse / Preview",
@@ -54,5 +54,14 @@
   "shadowrun-items-importer.preview.sections": "Sections / world item lookup",
   "shadowrun-items-importer.preview.warnings": "Warnings / unrecognized pieces",
   "shadowrun-items-importer.preview.worldItemsFound": "{found}/{total} world items found",
-  "shadowrun-items-importer.preview.derivedSecondaryStats": "Secondary row not found; values shown here were derived/defaulted."
+  "shadowrun-items-importer.preview.derivedSecondaryStats": "Secondary row not found; values shown here were derived/defaulted.",
+  "shadowrun-items-importer.label.spiritForce": "Force",
+  "shadowrun-items-importer.placeholderSpiritForce": "e.g. 6",
+  "shadowrun-items-importer.spirit.forceRequired": "Choose a numeric Force before previewing or importing a spirit.",
+  "shadowrun-items-importer.spirit.optionalPowersTitle": "Choose optional spirit powers",
+  "shadowrun-items-importer.spirit.optionalPowersIntro": "This spirit can have up to {limit} optional power(s). Green powers were found in world items; black powers were not found and cannot be selected yet.",
+  "shadowrun-items-importer.spirit.optionalPowersCounter": "Selected {selected}/{limit}",
+  "shadowrun-items-importer.spirit.optionalPowersLegend": "Only selected optional powers that exist as world items will be embedded into the created spirit actor.",
+  "shadowrun-items-importer.spirit.optionalPowersTooMany": "Too many optional powers selected. Only the first {limit} will be imported.",
+  "shadowrun-items-importer.spirit.noOptionalPowers": "Force {force} spirits do not receive optional powers because floor(Force / 3) is 0."
 }

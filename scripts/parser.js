@@ -21,8 +21,32 @@ import { GearCyberwareCyberlimbParser } from "./parsers/items/cyberware/gear-cyb
 import { GearCyberwareCyberlimbAccessoryParser } from "./parsers/items/cyberware/gear-cyberware-cyberlimb-accessory-parser.js";
 import { CritterPowerItemParser } from "./parsers/items/critter-power-item-parser.js";
 import { NpcStatblockParser } from "./parsers/actors/npc-statblock-parser.js";
+import { CritterStatblockParser } from "./parsers/actors/critter-statblock-parser.js";
+import { SpiritStatblockParser } from "./parsers/actors/spirit-statblock-parser.js";
 
 export class ShadowrunItemsImporterParser {
+
+  isSpiritActorInput(itemType, rawText) {
+    const normalizedType = String(itemType ?? "").toUpperCase();
+    const normalizedText = String(rawText ?? "").replace(/\r\n?/g, "\n");
+
+    return normalizedType.startsWith("ACTOR.SPIRIT")
+      || normalizedType === "SPIRIT"
+      || (/^\s*SPIRITS?\s+OF\s+/imu.test(normalizedText)
+        && /(?:^|\n)\s*AC\s+CM\s+MOVE\s*(?:\n|$)/iu.test(normalizedText)
+        && /(?:^|\n)\s*Optional\s+Powers\s*:/iu.test(normalizedText));
+  }
+
+  isCritterActorInput(itemType, rawText) {
+    const normalizedType = String(itemType ?? "").toUpperCase();
+    const normalizedText = String(rawText ?? "").replace(/\r\n?/g, "\n");
+
+    return normalizedType === "ACTOR.CRITTER"
+      || normalizedType === "CRITTER"
+      || (/^(?:dog|basilisk|[A-Za-z][A-Za-z\s'’\/-]{1,80})\s*$/imu.test(normalizedText)
+        && /(?:^|\n)\s*I\/ID\s+AC\s+CM\s+MOVE\s*(?:\n|$)/iu.test(normalizedText)
+        && /(?:^|\n)\s*(?:Powers|Attack|Defense\s+Rating)\s*:/iu.test(normalizedText));
+  }
 
   isNpcActorInput(itemType, rawText) {
     const normalizedType = String(itemType ?? "").toUpperCase();
@@ -198,6 +222,16 @@ export class ShadowrunItemsImporterParser {
     let parser;
     console.log("Creating parser for type:", itemType, folderId, rawText);
 
+
+    if (this.isSpiritActorInput(itemType, rawText)) {
+      parser = new SpiritStatblockParser({ text: rawText, type: itemType, folderId });
+      return parser.parse();
+    }
+
+    if (this.isCritterActorInput(itemType, rawText)) {
+      parser = new CritterStatblockParser({ text: rawText, type: itemType, folderId });
+      return parser.parse();
+    }
 
     if (this.isNpcActorInput(itemType, rawText)) {
       parser = new NpcStatblockParser({ text: rawText, type: itemType, folderId });

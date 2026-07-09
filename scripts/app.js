@@ -31,7 +31,14 @@ class ShadowrunImporterBaseApp extends HandlebarsApplicationMixin(ApplicationV2)
     const parsedObject = await parser.parseInput(input, itemFolderId || null, parserType);
     if (!parsedObject) return;
 
-    const parsedObjects = Array.isArray(parsedObject) ? parsedObject : [parsedObject];
+    let parsedObjects = Array.isArray(parsedObject) ? parsedObject : [parsedObject];
+
+    if (typeof this.beforeImportParsedDocuments === "function") {
+      const preparedObjects = await this.beforeImportParsedDocuments(parsedObjects, { input, parserType, itemFolderId });
+      if (!preparedObjects) return;
+      parsedObjects = Array.isArray(preparedObjects) ? preparedObjects : [preparedObjects];
+    }
+
     const createdDocuments = [];
 
     for (const documentData of parsedObjects) {
@@ -379,8 +386,14 @@ export class ShadowrunActorsImporterApp extends ShadowrunImporterBaseApp {
     for (const [sectionKey, entries] of Object.entries(sections)) {
       if (!this.isItemLookupSection(sectionKey) || !Array.isArray(entries)) continue;
 
+      const selectedOptionalPowers = String(sectionKey ?? "").toLowerCase() === "optional_powers"
+        ? this.selectedOptionalPowerKeys(actorData)
+        : null;
+
       for (const entry of entries) {
         const normalizedEntry = entry && typeof entry === "object" ? entry : { raw: String(entry ?? ""), name: String(entry ?? "") };
+        if (selectedOptionalPowers && !selectedOptionalPowers.has(this.optionalPowerKey(normalizedEntry))) continue;
+
         const match = this.resolveWorldItemForEntry(normalizedEntry, itemLookup, sectionKey);
         const quantity = this.entryQuantity(normalizedEntry.raw ?? normalizedEntry.name ?? "");
         const reportEntry = {
@@ -396,6 +409,162 @@ export class ShadowrunActorsImporterApp extends ShadowrunImporterBaseApp {
     }
 
     return { foundEntries, missingEntries };
+  }
+
+  selectedOptionalPowerKeys(actorData) {
+    const selected = actorData?.flags?.[SII.MODULE_ID]?.selectedOptionalPowers;
+    if (!Array.isArray(selected) || !selected.length) return new Set();
+    return new Set(selected.map((entry) => this.optionalPowerKey(entry)).filter(Boolean));
+  }
+
+  optionalPowerKey(entry) {
+    const raw = entry && typeof entry === "object" ? (entry.raw ?? entry.name ?? "") : String(entry ?? "");
+    const name = entry && typeof entry === "object" ? (entry.name ?? raw) : raw;
+
+    // Optional powers can share the same base world-item name but differ by
+    // qualifier, for example "Elemental Attack (Cold)" and
+    // "Elemental Attack (Electricity)". The lookup still matches the base
+    // item name, but the selected/allowed-set key must preserve the full raw
+    // option so selecting one does not import every option with the same base.
+    return this.normalizeItemLookupKey(raw || name);
+  }
+
+  async beforeImportParsedDocuments(parsedObjects) {
+    const preparedObjects = [];
+
+    for (const documentData of parsedObjects) {
+      if (this.resolveDocumentType(documentData) !== "Actor" || documentData?.type !== "Spirit") {
+        preparedObjects.push(documentData);
+        continue;
+      }
+
+      const configured = await this.configureSpiritOptionalPowers(documentData);
+      if (!configured) return null;
+      preparedObjects.push(configured);
+    }
+
+    return preparedObjects;
+  }
+
+  async configureSpiritOptionalPowers(actorData) {
+    const data = foundry.utils.deepClone(actorData ?? {});
+    const flags = data.flags?.[SII.MODULE_ID] ?? {};
+    const optionalPowers = flags.sections?.optional_powers ?? [];
+    const force = Number(flags.spirit?.force ?? data.system?.rating ?? 0);
+    const limit = Math.floor(force / 3);
+
+    foundry.utils.setProperty(data, `flags.${SII.MODULE_ID}.selectedOptionalPowers`, []);
+
+    if (!Array.isArray(optionalPowers) || !optionalPowers.length || limit <= 0) {
+      if (Array.isArray(optionalPowers) && optionalPowers.length && limit <= 0) {
+        ui.notifications?.info(game.i18n.format(`${SII.MODULE_ID}.spirit.noOptionalPowers`, { force }));
+      }
+      return data;
+    }
+
+    const selected = await this.promptSpiritOptionalPowers(optionalPowers, limit);
+    if (selected === null) return null;
+
+    foundry.utils.setProperty(data, `flags.${SII.MODULE_ID}.selectedOptionalPowers`, selected);
+    return data;
+  }
+
+  async promptSpiritOptionalPowers(optionalPowers, limit) {
+    const itemLookup = this.buildWorldItemLookup();
+    const rows = optionalPowers.map((entry, index) => {
+      const normalizedEntry = entry && typeof entry === "object" ? entry : { raw: String(entry ?? ""), name: String(entry ?? "") };
+      const match = this.resolveWorldItemForEntry(normalizedEntry, itemLookup, "optional_powers");
+      const label = normalizedEntry.raw ?? normalizedEntry.name ?? "";
+      const foundClass = match ? "sii-spirit-optional-found" : "sii-spirit-optional-missing";
+      const disabled = match ? "" : " disabled";
+      const title = match?.item?.uuid ? ` title="${this.escapeHtml(match.item.uuid)}"` : "";
+      return `<label class="sii-spirit-optional-row ${foundClass}"${title}>
+        <input type="checkbox" name="optionalPower" value="${index}"${disabled}>
+        <span>${this.escapeHtml(label)}</span>
+      </label>`;
+    }).join("");
+
+    const content = `<form class="sii-spirit-optional-dialog" data-limit="${Number(limit)}">
+      <p>${this.escapeHtml(game.i18n.format(`${SII.MODULE_ID}.spirit.optionalPowersIntro`, { limit }))}</p>
+      <div class="sii-spirit-optional-counter">${this.escapeHtml(game.i18n.format(`${SII.MODULE_ID}.spirit.optionalPowersCounter`, { selected: 0, limit }))}</div>
+      <div class="sii-spirit-optional-list">${rows}</div>
+      <p class="notes">${this.escapeHtml(game.i18n.localize(`${SII.MODULE_ID}.spirit.optionalPowersLegend`))}</p>
+    </form>`;
+
+    return new Promise((resolve) => {
+      const dialog = new Dialog({
+        title: game.i18n.localize(`${SII.MODULE_ID}.spirit.optionalPowersTitle`),
+        content,
+        buttons: {
+          cancel: {
+            icon: '<i class="fa-solid fa-xmark"></i>',
+            label: game.i18n.localize("Cancel"),
+            callback: () => resolve(null)
+          },
+          import: {
+            icon: '<i class="fa-solid fa-check"></i>',
+            label: game.i18n.localize(`${SII.MODULE_ID}.button.importActor`),
+            callback: (html) => {
+              const root = html?.[0] ?? html;
+              const indexes = Array.from(root?.querySelectorAll?.("input[name='optionalPower']:checked") ?? [])
+                .slice(0, limit)
+                .map((input) => Number(input.value))
+                .filter((index) => Number.isInteger(index) && index >= 0);
+
+              resolve(indexes.map((index) => optionalPowers[index]).filter(Boolean));
+            }
+          }
+        },
+        default: "import",
+        close: () => resolve(null)
+      });
+
+      dialog.render(true);
+      this.activateSpiritOptionalPowerLimit(dialog, limit);
+    });
+  }
+
+  activateSpiritOptionalPowerLimit(dialog, limit) {
+    const attach = () => {
+      const root = dialog.element?.[0] ?? dialog.element;
+      const form = root?.querySelector?.(".sii-spirit-optional-dialog");
+      if (!form) {
+        window.setTimeout(attach, 25);
+        return;
+      }
+
+      const checkboxes = Array.from(form.querySelectorAll("input[name='optionalPower']"));
+      const counter = form.querySelector(".sii-spirit-optional-counter");
+
+      const refresh = () => {
+        const checked = checkboxes.filter((input) => input.checked);
+        const selected = checked.length;
+        if (counter) {
+          counter.textContent = game.i18n.format(`${SII.MODULE_ID}.spirit.optionalPowersCounter`, { selected, limit });
+          counter.classList.toggle("sii-spirit-optional-over-limit", selected > limit);
+        }
+
+        for (const input of checkboxes) {
+          const unavailable = input.closest(".sii-spirit-optional-missing") !== null;
+          input.disabled = unavailable || (!input.checked && selected >= limit);
+        }
+      };
+
+      for (const input of checkboxes) {
+        input.addEventListener("change", () => {
+          const checked = checkboxes.filter((checkbox) => checkbox.checked);
+          if (checked.length > limit) {
+            input.checked = false;
+            ui.notifications?.warn(game.i18n.format(`${SII.MODULE_ID}.spirit.optionalPowersTooMany`, { limit }));
+          }
+          refresh();
+        });
+      }
+
+      refresh();
+    };
+
+    attach();
   }
 
   toEmbeddedItemData(item, match) {
@@ -463,7 +632,9 @@ export class ShadowrunActorsImporterApp extends ShadowrunImporterBaseApp {
       moduleId: SII.MODULE_ID,
       title: game.i18n.localize(`${SII.MODULE_ID}.actorTitle`),
       actorTypes: [
-        { value: "NPC", label: "NPC", selected: true }
+        { value: "NPC", label: "NPC", selected: true },
+        { value: "Critter", label: "Critter", selected: false },
+        { value: "Spirit", label: "Spirit", selected: false }
       ]
     };
   }
@@ -479,7 +650,39 @@ export class ShadowrunActorsImporterApp extends ShadowrunImporterBaseApp {
       textarea.value = `HUMANIS GOON\nB A R S W L I C ESS\n2 2 2 2 2 2 2 1 6\nDR I/ID AC CM MOVE\n2 4/1 A1, I2 9 10/15/+1\nSkills: Athletics 1, Close Combat 3, Influence 1 (Intimidation +2)\nGear: Commlink (Device Rating 1)\nWeapons:\nClub [Club, DV 3S, Attack Ratings 6/—/—/—/—]`;
     }
 
+    const actorTypeSelect = root.querySelector("select[name='actorType']");
+    const spiritForceField = root.querySelector(".sii-spirit-force-field");
+
+    const refreshSpiritForceField = () => {
+      if (!spiritForceField) return;
+      spiritForceField.style.display = actorTypeSelect?.value === "Spirit" ? "" : "none";
+    };
+
+    actorTypeSelect?.addEventListener("change", () => {
+      refreshSpiritForceField();
+      this.markActorPreviewStale();
+    });
+
+    root.querySelector("input[name='spiritForce']")?.addEventListener("input", () => this.markActorPreviewStale());
     textarea?.addEventListener("input", () => this.markActorPreviewStale());
+    refreshSpiritForceField();
+  }
+
+  actorParserTypeForCurrentSelection() {
+    const root = this.element;
+    const actorType = root?.querySelector("select[name='actorType']")?.value ?? "NPC";
+    if (actorType !== "Spirit") return `actor.${actorType}`;
+
+    const force = this.getSpiritForceInput();
+    if (!force) throw new Error(game.i18n.localize(`${SII.MODULE_ID}.spirit.forceRequired`));
+    return `actor.Spirit.force.${force}`;
+  }
+
+  getSpiritForceInput() {
+    const root = this.element;
+    const rawForce = root?.querySelector("input[name='spiritForce']")?.value ?? "";
+    const force = Number(rawForce);
+    return Number.isInteger(force) && force > 0 ? force : 0;
   }
 
   markActorPreviewStale() {
@@ -523,7 +726,8 @@ export class ShadowrunActorsImporterApp extends ShadowrunImporterBaseApp {
 
     try {
       const parser = new ShadowrunItemsImporterParser();
-      const parsedObject = await parser.parseInput(input, null, `actor.${actorType}`);
+      const parserType = this.actorParserTypeForCurrentSelection();
+      const parsedObject = await parser.parseInput(input, null, parserType);
       if (!parsedObject) return;
 
       const actorData = Array.isArray(parsedObject) ? parsedObject[0] : parsedObject;
@@ -562,7 +766,7 @@ export class ShadowrunActorsImporterApp extends ShadowrunImporterBaseApp {
     const warnings = importerFlags.warnings ?? [];
     const primaryAttributes = statBlock.primary?.attributes ?? {};
     const secondaryStats = statBlock.secondary ?? {};
-    const actorName = actorData?.name || "Unnamed NPC";
+    const actorName = actorData?.name || `Unnamed ${actorData?.type ?? "Actor"}`;
     const system = actorData?.system ?? {};
 
     const blocks = [
@@ -610,6 +814,7 @@ export class ShadowrunActorsImporterApp extends ShadowrunImporterBaseApp {
     const chips = [
       this.statChip("DR", stats.defenseRating),
       this.statChip("I/ID", `${stats.initiative ?? 0}/${stats.initiativeDice ?? 0}`),
+      stats.astralInitiative !== undefined ? this.statChip("Astral I/ID", `${stats.astralInitiative}/${stats.astralInitiativeDice ?? 0}`) : "",
       stats.actions ? this.statChip("AC", stats.actions) : "",
       this.statChip("CM", stats.stunMonitor && stats.stunMonitor !== stats.conditionMonitor ? `${stats.conditionMonitor ?? ""}/${stats.stunMonitor}` : (stats.conditionMonitor ?? "")),
       Number.isFinite(stats.walk) && Number.isFinite(stats.sprint) ? this.statChip("MOVE", `${stats.walk}/${stats.sprint}/${stats.perHit ?? 0}`) : ""
@@ -618,8 +823,11 @@ export class ShadowrunActorsImporterApp extends ShadowrunImporterBaseApp {
     const sourceNote = stats.source === "derived"
       ? `<p class="sii-preview-detail">${this.escapeHtml(game.i18n.localize(`${SII.MODULE_ID}.preview.derivedSecondaryStats`))}</p>`
       : "";
+    const movementNote = stats.movementNote
+      ? `<p class="sii-preview-detail">${this.recognized(`Extra movement: ${stats.movementNote}`)}</p>`
+      : "";
 
-    return this.previewCard(game.i18n.localize(`${SII.MODULE_ID}.preview.secondaryStats`), `<div class="sii-chip-grid">${chips.join("")}</div>${sourceNote}`);
+    return this.previewCard(game.i18n.localize(`${SII.MODULE_ID}.preview.secondaryStats`), `<div class="sii-chip-grid">${chips.join("")}</div>${sourceNote}${movementNote}`);
   }
 
   skillPreviewHtml(skills = []) {
@@ -676,6 +884,8 @@ export class ShadowrunActorsImporterApp extends ShadowrunImporterBaseApp {
       "programs",
       "qualities",
       "powers",
+      "optional_powers",
+      "weaknesses",
       "adept_powers",
       "vehicles"
     ]).has(String(sectionKey ?? "").toLowerCase());
@@ -759,14 +969,17 @@ export class ShadowrunActorsImporterApp extends ShadowrunImporterBaseApp {
       candidate = candidate.replace(/^\d+\s*x\s+/iu, "").trim();
       add(candidate);
       add(this.stripSearchTypeWords(candidate));
+      add(this.stripTrailingEntryRating(candidate, sectionKey));
 
       candidate = candidate.replace(/\s*\[[\s\S]*$/u, "").trim();
       add(candidate);
       add(this.stripSearchTypeWords(candidate));
+      add(this.stripTrailingEntryRating(candidate, sectionKey));
 
       candidate = candidate.replace(/\s*\([\s\S]*\)$/u, "").trim();
       add(candidate);
       add(this.stripSearchTypeWords(candidate));
+      add(this.stripTrailingEntryRating(candidate, sectionKey));
 
       const beforeWith = candidate.split(/\s+w\/\s+|\s+with\s+/iu)[0]?.trim();
       add(beforeWith);
@@ -837,7 +1050,7 @@ export class ShadowrunActorsImporterApp extends ShadowrunImporterBaseApp {
   }
 
   sectionAllowsTrailingRating(sectionKey = "") {
-    return ["augmentations", "cyberware", "bioware"].includes(String(sectionKey ?? "").toLowerCase());
+    return ["augmentations", "cyberware", "bioware", "powers", "optional_powers", "weaknesses"].includes(String(sectionKey ?? "").toLowerCase());
   }
 
   stripSearchTypeWords(value) {
@@ -917,6 +1130,7 @@ export class ShadowrunActorsImporterApp extends ShadowrunImporterBaseApp {
 
   formatEssenceStatValue(value = {}) {
     const parsed = this.formatStatValue(value);
+    if (value.formula && /F/i.test(String(value.formula))) return `${value.formula} → ${parsed}`;
     return `${parsed} understood; actor starts at 6`;
   }
 
@@ -948,8 +1162,8 @@ export class ShadowrunActorsImporterApp extends ShadowrunImporterBaseApp {
 
     try {
       const input = app.getInputValue();
-      const actorType = root.querySelector("select[name='actorType']")?.value ?? "NPC";
-      await app.importParsedDocuments({ input, parserType: `actor.${actorType}`, itemFolderId: null });
+      const parserType = app.actorParserTypeForCurrentSelection();
+      await app.importParsedDocuments({ input, parserType, itemFolderId: null });
     } catch (error) {
       console.error("Shadowrun actor importer failed", error);
       ui.notifications?.error(`Import failed: ${error.message}`);

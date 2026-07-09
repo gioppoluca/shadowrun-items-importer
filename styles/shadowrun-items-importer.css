@@ -110,6 +110,15 @@
   flex: 0 0 12rem;
 }
 
+.sii-actor-toolbar .sii-spirit-force-field {
+  flex: 0 0 8rem;
+}
+
+.sii-spirit-force-field input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .sii-actor-toolbar-actions {
   margin-left: auto;
 }
@@ -323,4 +332,56 @@
   .sii-actor-preview-layout {
     grid-template-columns: 1fr;
   }
+}
+
+
+.sii-spirit-optional-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sii-spirit-optional-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.sii-spirit-optional-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.3rem;
+  border-radius: 3px;
+}
+
+.sii-spirit-optional-row input {
+  flex: 0 0 auto;
+}
+
+.sii-spirit-optional-found {
+  color: #126a31;
+  font-weight: 600;
+  background: rgba(22, 131, 58, 0.12);
+}
+
+.sii-spirit-optional-missing {
+  color: currentColor;
+  opacity: 0.95;
+}
+
+
+.sii-spirit-optional-counter {
+  margin: 0 0 0.45rem;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.12);
+  font-weight: 600;
+}
+
+.sii-spirit-optional-over-limit {
+  color: #d9534f;
 }
