@@ -203,22 +203,25 @@ export class ShadowrunItemsImporterApp extends ShadowrunImporterBaseApp {
           selected: folder.id === lastFolderId
         }))
       ],
-      itemTypes: itemTypes.map((type) => ({
+      itemTypes: itemTypes.map((type) => Utils.optionWithParserStatus({
         value: type.value,
         label: type.label,
         selected: type.value === selectedItemType
-      })),
+      }, Utils.isActiveItemParser(type.value))),
       isGearSelected: selectedItemType === "gear",
-      gearTypes: gearTypeOptions.map((type) => ({
+      selectedItemTypeParserActive: Utils.isActiveItemParser(selectedItemType),
+      selectedGearTypeParserActive: Utils.isActiveGearType(selectedGearType),
+      selectedGearSubtypeParserActive: Utils.isActiveGearParser(selectedGearType, selectedGearSubtype),
+      gearTypes: gearTypeOptions.map((type) => Utils.optionWithParserStatus({
         value: type.value,
         label: type.label,
         selected: type.value === selectedGearType
-      })),
-      gearSubtypes: gearSubtypeOptions.map((type) => ({
+      }, Utils.isActiveGearType(type.value))),
+      gearSubtypes: gearSubtypeOptions.map((type) => Utils.optionWithParserStatus({
         value: type.value,
         label: type.label,
         selected: type.value === selectedGearSubtype
-      }))
+      }, Utils.isActiveGearParser(selectedGearType, type.value)))
     };
   }
 
@@ -238,6 +241,22 @@ export class ShadowrunItemsImporterApp extends ShadowrunImporterBaseApp {
     const gearSubtypeSelect = root.querySelector("select[name='gearSubtype']");
     const gearFields = root.querySelector(".sii-gear-fields");
 
+    const setSelectParserStatus = (select, parserActive) => {
+      if (!select) return;
+      select.classList.toggle("sii-select-parser-active", Boolean(parserActive));
+    };
+
+    const refreshParserStatus = () => {
+      const itemType = itemTypeSelect?.value ?? "";
+      const gearType = gearTypeSelect?.value ?? "";
+      const gearSubtype = gearSubtypeSelect?.value ?? "";
+      const showGearFields = itemType === "gear";
+
+      setSelectParserStatus(itemTypeSelect, Utils.isActiveItemParser(itemType));
+      setSelectParserStatus(gearTypeSelect, showGearFields && Utils.isActiveGearType(gearType));
+      setSelectParserStatus(gearSubtypeSelect, showGearFields && Utils.isActiveGearParser(gearType, gearSubtype));
+    };
+
     const refreshGearFields = () => {
       const itemType = itemTypeSelect?.value ?? "";
       const gearType = gearTypeSelect?.value ?? "";
@@ -245,23 +264,39 @@ export class ShadowrunItemsImporterApp extends ShadowrunImporterBaseApp {
       const showGearFields = itemType === "gear";
 
       if (gearFields) gearFields.style.display = showGearFields ? "" : "none";
-      if (!gearSubtypeSelect) return;
+      if (!gearSubtypeSelect) {
+        refreshParserStatus();
+        return;
+      }
 
       gearSubtypeSelect.innerHTML = "";
-      if (!showGearFields || !gearType) return;
+      if (!showGearFields || !gearType) {
+        refreshParserStatus();
+        return;
+      }
 
       const subtypeOptions = Utils.getGearSubtypeOptions(gearType);
       for (const option of subtypeOptions) {
+        const parserActive = Utils.isActiveGearParser(gearType, option.value);
         const el = document.createElement("option");
         el.value = option.value;
         el.textContent = option.label;
         el.selected = option.value === previousSubtype;
+        el.dataset.parserActive = parserActive ? "true" : "false";
+        el.classList.toggle("sii-option-parser-active", parserActive);
         gearSubtypeSelect.appendChild(el);
       }
+
+      if (!gearSubtypeSelect.value && gearSubtypeSelect.options.length) {
+        gearSubtypeSelect.options[0].selected = true;
+      }
+
+      refreshParserStatus();
     };
 
     itemTypeSelect?.addEventListener("change", refreshGearFields);
     gearTypeSelect?.addEventListener("change", refreshGearFields);
+    gearSubtypeSelect?.addEventListener("change", refreshParserStatus);
 
     refreshGearFields();
   }

@@ -11,6 +11,7 @@ import { GearVehicleItemParser } from "./parsers/items/gear-vehicle-item-parser.
 import { GearElectronicsCyberdeckParser } from "./parsers/items/gear-electronics-cyberdeck-parser.js";
 import { GearElectronicsCommlinkParser } from "./parsers/items/gear-electronics-commlink-parser.js";
 import { GearSoftwareProgramParser } from "./parsers/items/gear-software-program-parser.js";
+import { GearArmorParser } from "./parsers/items/gear-armor-parser.js";
 import { GearCyberwareHeadwareParser } from "./parsers/items/cyberware/gear-cyberware-headware-parser.js";
 import { GearCyberwareEyewareParser } from "./parsers/items/cyberware/gear-cyberware-eyeware-parser.js";
 import { GearCyberwareEarwareParser } from "./parsers/items/cyberware/gear-cyberware-earware-parser.js";
@@ -163,6 +164,15 @@ export class ShadowrunItemsImporterParser {
       || /\bCOMMLINKS?\b[\s\S]*?\bITEM\b[\s\S]*?\bDEVICE\s+RATING\b[\s\S]*?\bATTRIBUTES\s*\(\s*D\s*\/\s*F\s*\)[\s\S]*?\bACTIVE\s+PROGRAM\s+SLOTS\b[\s\S]*?\bAVAIL\b[\s\S]*?\bCOST\b/u.test(normalizedText);
   }
 
+
+  isArmorInput(itemType, rawText) {
+    const normalizedType = String(itemType ?? "").toUpperCase();
+    const normalizedText = String(rawText ?? "").toUpperCase().replace(/\s+/g, " ");
+
+    return normalizedType.startsWith("GEAR.ARMOR")
+      || /\bTYPE\b\s+DEFENSE\s+RATING\s+CAPACITY\s+AVAIL(?:ABILITY)?\s+COST\b/u.test(normalizedText);
+  }
+
   isSoftwareProgramInput(itemType, rawText) {
     const normalizedType = String(itemType ?? "").toUpperCase();
     const normalizedText = String(rawText ?? "").replace(/\r\n?/g, "\n");
@@ -311,6 +321,11 @@ export class ShadowrunItemsImporterParser {
       return parser.parse();
     }
 
+    if (this.isArmorInput(itemType, rawText)) {
+      parser = new GearArmorParser({ text: rawText, type: itemType, folderId });
+      return parser.parse();
+    }
+
     if (this.isVehicleInput(itemType, rawText)) {
       parser = new GearVehicleItemParser({ text: rawText, type: itemType, folderId });
       return parser.parse();
@@ -333,6 +348,14 @@ export class ShadowrunItemsImporterParser {
         break;
       case "gear.CHEMICALS.TOXINS":
         parser = new GearChemicalsToxinsParser({ text: rawText, type: itemType, folderId });
+        break;
+
+      case "gear.ARMOR.ARMOR_BODY":
+      case "gear.ARMOR.ARMOR_HELMET":
+      case "gear.ARMOR.ARMOR_SHIELD":
+      case "gear.ARMOR.ARMOR_SOCIAL":
+      case "gear.ARMOR.ARMOR_CLOTHES":
+        parser = new GearArmorParser({ text: rawText, type: itemType, folderId });
         break;
 
       case "gear.ELECTRONICS.CYBERDECK":

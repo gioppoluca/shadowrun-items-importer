@@ -16,9 +16,9 @@
 
     <div class="sii-field-group sii-item-fields">
       <label class="sii-label" for="sii-item-type">{{localize "shadowrun-items-importer.label.type"}}</label>
-      <select id="sii-item-type" name="itemType">
+      <select id="sii-item-type" name="itemType" class="{{#if selectedItemTypeParserActive}}sii-select-parser-active{{/if}}">
         {{#each itemTypes}}
-        <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+        <option value="{{this.value}}" class="{{this.parserStatusClass}}" data-parser-active="{{this.parserActive}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
         {{/each}}
       </select>
     </div>
@@ -26,18 +26,18 @@
     <div class="sii-gear-fields" style="{{#unless isGearSelected}}display:none;{{/unless}}">
       <div class="sii-field-group">
         <label class="sii-label" for="sii-gear-type">Gear type</label>
-        <select id="sii-gear-type" name="gearType">
+        <select id="sii-gear-type" name="gearType" class="{{#if selectedGearTypeParserActive}}sii-select-parser-active{{/if}}">
           {{#each gearTypes}}
-          <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+          <option value="{{this.value}}" class="{{this.parserStatusClass}}" data-parser-active="{{this.parserActive}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
           {{/each}}
         </select>
       </div>
 
       <div class="sii-field-group">
         <label class="sii-label" for="sii-gear-subtype">Gear subtype</label>
-        <select id="sii-gear-subtype" name="gearSubtype">
+        <select id="sii-gear-subtype" name="gearSubtype" class="{{#if selectedGearSubtypeParserActive}}sii-select-parser-active{{/if}}">
           {{#each gearSubtypes}}
-          <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+          <option value="{{this.value}}" class="{{this.parserStatusClass}}" data-parser-active="{{this.parserActive}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
           {{/each}}
         </select>
       </div>
