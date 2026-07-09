@@ -1,0 +1,46 @@
+<div class="sii-shell sii-actor-shell">
+  <div class="sii-actor-toolbar">
+    <div class="sii-field-group sii-actor-type-field">
+      <label class="sii-label" for="sii-actor-type">{{localize "shadowrun-items-importer.label.actorType"}}</label>
+      <select id="sii-actor-type" name="actorType">
+        {{#each actorTypes}}
+        <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+        {{/each}}
+      </select>
+    </div>
+
+    <div class="sii-actions sii-actor-toolbar-actions">
+      <button type="button" data-action="previewActors">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        {{localize "shadowrun-items-importer.button.previewActor"}}
+      </button>
+      <button type="button" class="sii-primary" data-action="importActors">
+        <i class="fa-solid fa-users"></i>
+        {{localize "shadowrun-items-importer.button.importActor"}}
+      </button>
+    </div>
+  </div>
+
+  <section class="sii-actor-preview-layout">
+    <div class="sii-actor-pane sii-actor-source-pane">
+      <header class="sii-pane-header">
+        <h3>{{localize "shadowrun-items-importer.label.sourceText"}}</h3>
+      </header>
+      <textarea name="input" class="sii-input sii-actor-input"
+        placeholder="{{localize 'shadowrun-items-importer.placeholderActor'}}"></textarea>
+    </div>
+
+    <div class="sii-actor-pane sii-actor-preview-pane">
+      <header class="sii-pane-header">
+        <h3>{{localize "shadowrun-items-importer.label.actorPreview"}}</h3>
+        <span class="sii-preview-status">{{localize "shadowrun-items-importer.preview.empty"}}</span>
+      </header>
+      <div class="sii-actor-preview" aria-live="polite">
+        <div class="sii-preview-placeholder">
+          <i class="fa-regular fa-eye"></i>
+          {{localize "shadowrun-items-importer.preview.placeholder"}}
+        </div>
+      </div>
+    </div>
+  </section>
+</div>

@@ -4,13 +4,141 @@ import { ShadowrunItemsImporterParser } from "./parser.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
-export class ShadowrunItemsImporterApp extends HandlebarsApplicationMixin(ApplicationV2) {
+class ShadowrunImporterBaseApp extends HandlebarsApplicationMixin(ApplicationV2) {
+  static APP_INSTANCE = null;
+
+  static async show(options = {}) {
+    if (!this.APP_INSTANCE) this.APP_INSTANCE = new this(options);
+    await this.APP_INSTANCE.render({ force: true });
+    return this.APP_INSTANCE;
+  }
+
+  get rootElement() {
+    return this.element;
+  }
+
+  getInputValue() {
+    return this.rootElement?.querySelector("textarea[name='input']")?.value ?? "";
+  }
+
+  async importParsedDocuments({ input, parserType, itemFolderId = null }) {
+    if (!input.trim()) {
+      ui.notifications?.warn(game.i18n.localize(`${SII.MODULE_ID}.notifications.missingInput`));
+      return;
+    }
+
+    const parser = new ShadowrunItemsImporterParser();
+    const parsedObject = await parser.parseInput(input, itemFolderId || null, parserType);
+    if (!parsedObject) return;
+
+    const parsedObjects = Array.isArray(parsedObject) ? parsedObject : [parsedObject];
+    const createdDocuments = [];
+
+    for (const documentData of parsedObjects) {
+      const created = await this.createImportedDocument(documentData, itemFolderId || null);
+      createdDocuments.push(created);
+
+      const warnings = documentData.flags?.[SII.MODULE_ID]?.warnings ?? [];
+      for (const warning of warnings) {
+        ui.notifications?.warn(warning);
+      }
+    }
+
+    if (createdDocuments.length === 1) {
+      const label = this.labelForCreatedDocument(createdDocuments[0]);
+      ui.notifications?.info(`Created ${label}: ${createdDocuments[0].name}`);
+      await createdDocuments[0].sheet.render(true);
+    } else {
+      ui.notifications?.info(this.creationSummary(createdDocuments));
+    }
+
+    this.close();
+  }
+
+  async createImportedDocument(documentData, itemFolderId) {
+    const documentType = this.resolveDocumentType(documentData);
+
+    if (documentType === "Actor") {
+      return this.createActorDocument(documentData, this.resolveActorFolderId(documentData));
+    }
+
+    return this.createItemDocument(documentData, itemFolderId);
+  }
+
+  resolveDocumentType(documentData) {
+    const explicitType = documentData?.flags?.[SII.MODULE_ID]?.documentType;
+    if (explicitType === "Actor" || explicitType === "Item") return explicitType;
+
+    if (documentData?.type && CONFIG.Actor?.typeLabels?.[documentData.type] && !CONFIG.Item?.typeLabels?.[documentData.type]) {
+      return "Actor";
+    }
+
+    return "Item";
+  }
+
+  resolveActorFolderId(_actorData) {
+    // Actors are intentionally created at actor-root level for now.
+    // Keeping this as a method makes it easy to route them to Actor folders later.
+    return null;
+  }
+
+  async createItemDocument(itemData, folderId) {
+    const payload = foundry.utils.deepClone(itemData);
+    const normalizedFolderId = folderId || null;
+    payload.folder = normalizedFolderId;
+
+    const created = await Item.create(payload);
+
+    if (normalizedFolderId && created.folder?.id !== normalizedFolderId) {
+      await created.update({ folder: normalizedFolderId });
+    }
+
+    return created;
+  }
+
+  async createActorDocument(actorData, actorFolderId = null) {
+    const payload = foundry.utils.deepClone(actorData);
+    const normalizedFolderId = actorFolderId || null;
+    payload.folder = normalizedFolderId;
+
+    const created = await Actor.create(payload);
+
+    if (normalizedFolderId && created.folder?.id !== normalizedFolderId) {
+      await created.update({ folder: normalizedFolderId });
+    }
+
+    return created;
+  }
+
+  labelForCreatedDocument(document) {
+    const documentName = document?.documentName || document?.constructor?.documentName || "document";
+    return String(documentName).toLowerCase();
+  }
+
+  creationSummary(documents = []) {
+    const counts = documents.reduce((acc, document) => {
+      const documentName = document?.documentName || document?.constructor?.documentName || "Document";
+      acc[documentName] = (acc[documentName] ?? 0) + 1;
+      return acc;
+    }, {});
+
+    const parts = Object.entries(counts).map(([documentName, count]) => {
+      const label = String(documentName).toLowerCase();
+      const plural = count === 1 ? label : `${label}s`;
+      return `${count} ${plural}`;
+    });
+
+    return `Created ${parts.join(" and ")}.`;
+  }
+}
+
+export class ShadowrunItemsImporterApp extends ShadowrunImporterBaseApp {
   static APP_INSTANCE = null;
 
   static DEFAULT_OPTIONS = {
     id: SII.APP_ID,
     tag: "section",
-    classes: [SII.MODULE_ID, "window-app"],
+    classes: [SII.MODULE_ID, "window-app", "sii-item-window"],
     position: {
       width: 860,
       height: 680
@@ -27,15 +155,9 @@ export class ShadowrunItemsImporterApp extends HandlebarsApplicationMixin(Applic
 
   static PARTS = {
     content: {
-      template: SII.TEMPLATES.WINDOW
+      template: SII.TEMPLATES.ITEM_WINDOW
     }
   };
-
-  static async show(options = {}) {
-    if (!this.APP_INSTANCE) this.APP_INSTANCE = new this(options);
-    await this.APP_INSTANCE.render({ force: true });
-    return this.APP_INSTANCE;
-  }
 
   async _prepareContext(_options) {
     const itemTypes = Utils.getItemTypeOptions();
@@ -113,16 +235,13 @@ export class ShadowrunItemsImporterApp extends HandlebarsApplicationMixin(Applic
       const itemType = itemTypeSelect?.value ?? "";
       const gearType = gearTypeSelect?.value ?? "";
       const previousSubtype = gearSubtypeSelect?.value ?? "";
+      const showGearFields = itemType === "gear";
 
-      if (gearFields) {
-        gearFields.style.display = itemType === "gear" ? "" : "none";
-      }
-
+      if (gearFields) gearFields.style.display = showGearFields ? "" : "none";
       if (!gearSubtypeSelect) return;
 
       gearSubtypeSelect.innerHTML = "";
-
-      if (itemType !== "gear" || !gearType) return;
+      if (!showGearFields || !gearType) return;
 
       const subtypeOptions = Utils.getGearSubtypeOptions(gearType);
       for (const option of subtypeOptions) {
@@ -146,17 +265,11 @@ export class ShadowrunItemsImporterApp extends HandlebarsApplicationMixin(Applic
     if (!app || !root) return;
 
     try {
-      const input = root.querySelector("textarea[name='input']")?.value ?? "";
+      const input = app.getInputValue();
       const folderId = root.querySelector("select[name='folderId']")?.value ?? "";
       const baseType = root.querySelector("select[name='itemType']")?.value ?? "";
       const gearType = root.querySelector("select[name='gearType']")?.value ?? "";
       const gearSubtype = root.querySelector("select[name='gearSubtype']")?.value ?? "";
-
-      if (!input.trim()) {
-        ui.notifications?.warn(game.i18n.localize(`${SII.MODULE_ID}.notifications.missingInput`));
-        return;
-      }
-
       const parserType = baseType === "gear" ? `gear.${gearType}.${gearSubtype}` : baseType;
 
       if (game.settings.get(SII.MODULE_ID, SII.SETTINGS.REMEMBER_FOLDER)) {
@@ -169,111 +282,677 @@ export class ShadowrunItemsImporterApp extends HandlebarsApplicationMixin(Applic
         await game.settings.set(SII.MODULE_ID, SII.SETTINGS.LAST_GEAR_SUBTYPE, gearSubtype);
       }
 
-      const parser = new ShadowrunItemsImporterParser();
-      const parsedObject = await parser.parseInput(input, folderId || null, parserType);
-      if (!parsedObject) return;
-
-      const parsedObjects = Array.isArray(parsedObject) ? parsedObject : [parsedObject];
-      const createdDocuments = [];
-
-      for (const documentData of parsedObjects) {
-        const created = await app.createImportedDocument(documentData, folderId || null);
-        createdDocuments.push(created);
-
-        const warnings = documentData.flags?.[SII.MODULE_ID]?.warnings ?? [];
-        for (const warning of warnings) {
-          ui.notifications?.warn(warning);
-        }
-      }
-
-      if (createdDocuments.length === 1) {
-        const label = app.labelForCreatedDocument(createdDocuments[0]);
-        ui.notifications?.info(`Created ${label}: ${createdDocuments[0].name}`);
-        await createdDocuments[0].sheet.render(true);
-      } else {
-        ui.notifications?.info(app.creationSummary(createdDocuments));
-      }
-
-      app.close();
+      await app.importParsedDocuments({ input, parserType, itemFolderId: folderId || null });
     } catch (error) {
-      console.error("Shadowrun importer failed", error);
+      console.error("Shadowrun item importer failed", error);
       ui.notifications?.error(`Import failed: ${error.message}`);
     }
   }
+}
 
-  async createImportedDocument(documentData, itemFolderId) {
-    const documentType = this.resolveDocumentType(documentData);
+export class ShadowrunActorsImporterApp extends ShadowrunImporterBaseApp {
+  static APP_INSTANCE = null;
 
-    if (documentType === "Actor") {
-      return this.createActorDocument(documentData, this.resolveActorFolderId(documentData));
+  static DEFAULT_OPTIONS = {
+    id: SII.ACTOR_APP_ID,
+    tag: "section",
+    classes: [SII.MODULE_ID, "window-app", "sii-actor-window"],
+    position: {
+      width: 1220,
+      height: 720
+    },
+    window: {
+      title: `${SII.MODULE_ID}.actorTitle`,
+      resizable: true,
+      icon: "fa-solid fa-users"
+    },
+    actions: {
+      previewActors: ShadowrunActorsImporterApp.onPreviewAction,
+      importActors: ShadowrunActorsImporterApp.onImportAction
+    }
+  };
+
+  static PARTS = {
+    content: {
+      template: SII.TEMPLATES.ACTOR_WINDOW
+    }
+  };
+
+  async createActorDocument(actorData, actorFolderId = null) {
+    const { actorData: preparedActorData, embeddedItems, summary } = this.prepareActorDataWithMatchedWorldItems(actorData);
+    const created = await super.createActorDocument(preparedActorData, actorFolderId);
+
+    if (embeddedItems.length) {
+      await created.createEmbeddedDocuments("Item", embeddedItems);
     }
 
-    return this.createItemDocument(documentData, itemFolderId);
-  }
-
-  resolveDocumentType(documentData) {
-    const explicitType = documentData?.flags?.[SII.MODULE_ID]?.documentType;
-    if (explicitType === "Actor" || explicitType === "Item") return explicitType;
-
-    if (documentData?.type && CONFIG.Actor?.typeLabels?.[documentData.type] && !CONFIG.Item?.typeLabels?.[documentData.type]) {
-      return "Actor";
+    if (summary.total) {
+      const foundLabel = `${summary.found}/${summary.total}`;
+      ui.notifications?.info(`Actor item lookup: ${foundLabel} world item entries embedded.`);
+      if (summary.missing > 0) {
+        ui.notifications?.warn(`Actor item lookup: ${summary.missing} parsed entries were not found in world items and were left in importer flags.`);
+      }
     }
 
-    return "Item";
+    return created;
   }
 
-  resolveActorFolderId(_actorData) {
-    // Vehicles are intentionally created at actor-root level for now.
-    // Keeping this as a method makes it easy to route them to Actor folders later.
+  prepareActorDataWithMatchedWorldItems(actorData) {
+    const preparedActorData = foundry.utils.deepClone(actorData ?? {});
+    const itemLookup = this.buildWorldItemLookup();
+    const matchReport = this.collectWorldItemMatches(preparedActorData, itemLookup);
+    const embeddedItems = [];
+
+    for (const match of matchReport.foundEntries) {
+      embeddedItems.push(this.toEmbeddedItemData(match.item, match));
+    }
+
+    const importSummary = {
+      found: matchReport.foundEntries.length,
+      missing: matchReport.missingEntries.length,
+      total: matchReport.foundEntries.length + matchReport.missingEntries.length,
+      embedded: embeddedItems.length,
+      totalQuantity: matchReport.foundEntries.reduce((total, entry) => total + (entry.quantity ?? 1), 0),
+      foundEntries: matchReport.foundEntries.map((entry) => ({
+        section: entry.sectionKey,
+        raw: entry.raw,
+        matchedName: entry.item?.name ?? "",
+        matchedUuid: entry.item?.uuid ?? "",
+        quantity: entry.quantity
+      })),
+      missingEntries: matchReport.missingEntries.map((entry) => ({
+        section: entry.sectionKey,
+        raw: entry.raw,
+        name: entry.name
+      }))
+    };
+
+    foundry.utils.setProperty(preparedActorData, `flags.${SII.MODULE_ID}.worldItemImport`, importSummary);
+    return { actorData: preparedActorData, embeddedItems, summary: importSummary };
+  }
+
+  collectWorldItemMatches(actorData, itemLookup = this.buildWorldItemLookup()) {
+    const sections = actorData?.flags?.[SII.MODULE_ID]?.sections ?? {};
+    const foundEntries = [];
+    const missingEntries = [];
+
+    for (const [sectionKey, entries] of Object.entries(sections)) {
+      if (!this.isItemLookupSection(sectionKey) || !Array.isArray(entries)) continue;
+
+      for (const entry of entries) {
+        const normalizedEntry = entry && typeof entry === "object" ? entry : { raw: String(entry ?? ""), name: String(entry ?? "") };
+        const match = this.resolveWorldItemForEntry(normalizedEntry, itemLookup, sectionKey);
+        const quantity = this.entryQuantity(normalizedEntry.raw ?? normalizedEntry.name ?? "");
+        const reportEntry = {
+          sectionKey,
+          raw: normalizedEntry.raw ?? normalizedEntry.name ?? "",
+          name: normalizedEntry.name ?? normalizedEntry.raw ?? "",
+          quantity
+        };
+
+        if (match?.item) foundEntries.push({ ...reportEntry, item: match.item, candidate: match.candidate });
+        else missingEntries.push(reportEntry);
+      }
+    }
+
+    return { foundEntries, missingEntries };
+  }
+
+  toEmbeddedItemData(item, match) {
+    const sourceData = typeof item?.toObject === "function" ? item.toObject() : item;
+    const embeddedData = foundry.utils.deepClone(sourceData ?? {});
+    const quantity = match?.quantity ?? 1;
+
+    delete embeddedData._id;
+    delete embeddedData.folder;
+    delete embeddedData.sort;
+    delete embeddedData.ownership;
+    delete embeddedData._stats;
+
+    if (Array.isArray(embeddedData.effects)) {
+      embeddedData.effects = embeddedData.effects.map((effect) => {
+        const effectData = foundry.utils.deepClone(effect);
+        delete effectData._id;
+        delete effectData.parent;
+        delete effectData.sort;
+        delete effectData.ownership;
+        delete effectData._stats;
+        return effectData;
+      });
+    }
+
+    this.applyEmbeddedItemQuantity(embeddedData, quantity);
+
+    embeddedData.flags = embeddedData.flags ?? {};
+    embeddedData.flags[SII.MODULE_ID] = {
+      ...(embeddedData.flags[SII.MODULE_ID] ?? {}),
+      importedFromWorldItem: {
+        uuid: item?.uuid ?? "",
+        name: item?.name ?? embeddedData.name ?? "",
+        section: match?.sectionKey ?? "",
+        raw: match?.raw ?? "",
+        candidate: match?.candidate ?? "",
+        quantity
+      }
+    };
+
+    return embeddedData;
+  }
+
+  applyEmbeddedItemQuantity(embeddedData, quantity = 1) {
+    if (!Number.isInteger(quantity) || quantity <= 1) return;
+
+    embeddedData.system = embeddedData.system ?? {};
+    embeddedData.system.count = String(quantity);
+    embeddedData.system.countable = true;
+  }
+
+  entryQuantity(value) {
+    const match = String(value ?? "").match(/^(\d+)\s*x\s+/iu);
+    if (!match) return 1;
+
+    const quantity = Number(match[1]);
+    if (!Number.isInteger(quantity) || quantity < 1) return 1;
+
+    // Keep runaway OCR/paste mistakes from creating hundreds of embedded items.
+    return Math.min(quantity, 20);
+  }
+
+  async _prepareContext(_options) {
+    return {
+      moduleId: SII.MODULE_ID,
+      title: game.i18n.localize(`${SII.MODULE_ID}.actorTitle`),
+      actorTypes: [
+        { value: "NPC", label: "NPC", selected: true }
+      ]
+    };
+  }
+
+  async _onRender(context, options) {
+    await super._onRender(context, options);
+
+    const root = this.element;
+    if (!root) return;
+
+    const textarea = root.querySelector("textarea[name='input']");
+    if (textarea && !textarea.value && game.settings.get(SII.MODULE_ID, SII.SETTINGS.DEBUG)) {
+      textarea.value = `HUMANIS GOON\nB A R S W L I C ESS\n2 2 2 2 2 2 2 1 6\nDR I/ID AC CM MOVE\n2 4/1 A1, I2 9 10/15/+1\nSkills: Athletics 1, Close Combat 3, Influence 1 (Intimidation +2)\nGear: Commlink (Device Rating 1)\nWeapons:\nClub [Club, DV 3S, Attack Ratings 6/—/—/—/—]`;
+    }
+
+    textarea?.addEventListener("input", () => this.markActorPreviewStale());
+  }
+
+  markActorPreviewStale() {
+    const root = this.element;
+    const preview = root?.querySelector(".sii-actor-preview");
+    const status = root?.querySelector(".sii-preview-status");
+    const textarea = root?.querySelector("textarea[name='input']");
+
+    if (!preview || !textarea || !this._actorPreviewSource) return;
+    if (textarea.value === this._actorPreviewSource) return;
+
+    preview.classList.add("sii-preview-stale");
+    if (status) {
+      status.textContent = game.i18n.localize(`${SII.MODULE_ID}.preview.stale`);
+      status.classList.add("sii-preview-status-stale");
+    }
+  }
+
+  async renderActorPreview() {
+    const root = this.element;
+    if (!root) return;
+
+    const input = this.getInputValue();
+    const preview = root.querySelector(".sii-actor-preview");
+    const status = root.querySelector(".sii-preview-status");
+    const actorType = root.querySelector("select[name='actorType']")?.value ?? "NPC";
+
+    if (!input.trim()) {
+      ui.notifications?.warn(game.i18n.localize(`${SII.MODULE_ID}.notifications.missingInput`));
+      return;
+    }
+
+    if (preview) {
+      preview.classList.remove("sii-preview-stale");
+      preview.innerHTML = this.actorPreviewBusyHtml();
+    }
+    if (status) {
+      status.textContent = game.i18n.localize(`${SII.MODULE_ID}.preview.parsing`);
+      status.classList.remove("sii-preview-status-stale");
+    }
+
+    try {
+      const parser = new ShadowrunItemsImporterParser();
+      const parsedObject = await parser.parseInput(input, null, `actor.${actorType}`);
+      if (!parsedObject) return;
+
+      const actorData = Array.isArray(parsedObject) ? parsedObject[0] : parsedObject;
+      this._actorPreviewSource = input;
+
+      const itemLookup = this.buildWorldItemLookup();
+      const itemMatchSummary = this.summarizeItemMatches(actorData, itemLookup);
+
+      if (preview) preview.innerHTML = this.actorPreviewHtml(actorData, itemLookup);
+      if (status) {
+        const readyLabel = game.i18n.localize(`${SII.MODULE_ID}.preview.ready`);
+        status.textContent = itemMatchSummary.total
+          ? `${readyLabel} · ${game.i18n.format(`${SII.MODULE_ID}.preview.worldItemsFound`, itemMatchSummary)}`
+          : readyLabel;
+      }
+    } catch (error) {
+      console.error("Shadowrun actor preview failed", error);
+      if (preview) preview.innerHTML = this.actorPreviewErrorHtml(error);
+      if (status) status.textContent = game.i18n.localize(`${SII.MODULE_ID}.preview.failed`);
+      ui.notifications?.error(`Preview failed: ${error.message}`);
+    }
+  }
+
+  actorPreviewBusyHtml() {
+    return `<div class="sii-preview-placeholder"><i class="fa-solid fa-spinner fa-spin"></i> ${this.escapeHtml(game.i18n.localize(`${SII.MODULE_ID}.preview.parsing`))}</div>`;
+  }
+
+  actorPreviewErrorHtml(error) {
+    return `<div class="sii-preview-error"><strong>${this.escapeHtml(game.i18n.localize(`${SII.MODULE_ID}.preview.failed`))}</strong><p>${this.escapeHtml(error?.message ?? String(error))}</p></div>`;
+  }
+
+  actorPreviewHtml(actorData, itemLookup = this.buildWorldItemLookup()) {
+    const importerFlags = actorData?.flags?.[SII.MODULE_ID] ?? {};
+    const statBlock = importerFlags.statBlock ?? {};
+    const sections = importerFlags.sections ?? {};
+    const warnings = importerFlags.warnings ?? [];
+    const primaryAttributes = statBlock.primary?.attributes ?? {};
+    const secondaryStats = statBlock.secondary ?? {};
+    const actorName = actorData?.name || "Unnamed NPC";
+    const system = actorData?.system ?? {};
+
+    const blocks = [
+      `<div class="sii-preview-card sii-preview-actor-card">
+        <div class="sii-preview-card-title">${this.recognized(actorName)}</div>
+        <div class="sii-preview-card-subtitle">${this.escapeHtml(actorData?.type ?? "NPC")} · ${this.escapeHtml(system.mortype ?? "mundane")}</div>
+      </div>`,
+      this.attributePreviewHtml(primaryAttributes),
+      this.secondaryPreviewHtml(secondaryStats),
+      this.skillPreviewHtml(sections.skills ?? []),
+      this.sectionPreviewHtml(sections, itemLookup),
+      this.warningPreviewHtml(warnings)
+    ].filter(Boolean);
+
+    return `<div class="sii-preview-content">${blocks.join("")}</div>`;
+  }
+
+  attributePreviewHtml(attributes = {}) {
+    const labels = [
+      ["bod", "BOD"],
+      ["agi", "AGI"],
+      ["rea", "REA"],
+      ["str", "STR"],
+      ["wil", "WIL"],
+      ["log", "LOG"],
+      ["int", "INT"],
+      ["cha", "CHA"],
+      ["mag", "MAG"],
+      ["essence", "ESS"]
+    ];
+
+    const chips = labels
+      .filter(([id]) => attributes[id])
+      .map(([id, label]) => id === "essence"
+        ? this.statChip(label, this.formatEssenceStatValue(attributes[id]), { acknowledged: true })
+        : this.statChip(label, this.formatStatValue(attributes[id])));
+
+    if (!chips.length) return "";
+    return this.previewCard(game.i18n.localize(`${SII.MODULE_ID}.preview.primaryStats`), `<div class="sii-chip-grid">${chips.join("")}</div>`);
+  }
+
+  secondaryPreviewHtml(stats = {}) {
+    if (!Object.keys(stats).length) return "";
+
+    const chips = [
+      this.statChip("DR", stats.defenseRating),
+      this.statChip("I/ID", `${stats.initiative ?? 0}/${stats.initiativeDice ?? 0}`),
+      stats.actions ? this.statChip("AC", stats.actions) : "",
+      this.statChip("CM", stats.stunMonitor && stats.stunMonitor !== stats.conditionMonitor ? `${stats.conditionMonitor ?? ""}/${stats.stunMonitor}` : (stats.conditionMonitor ?? "")),
+      Number.isFinite(stats.walk) && Number.isFinite(stats.sprint) ? this.statChip("MOVE", `${stats.walk}/${stats.sprint}/${stats.perHit ?? 0}`) : ""
+    ].filter(Boolean);
+
+    const sourceNote = stats.source === "derived"
+      ? `<p class="sii-preview-detail">${this.escapeHtml(game.i18n.localize(`${SII.MODULE_ID}.preview.derivedSecondaryStats`))}</p>`
+      : "";
+
+    return this.previewCard(game.i18n.localize(`${SII.MODULE_ID}.preview.secondaryStats`), `<div class="sii-chip-grid">${chips.join("")}</div>${sourceNote}`);
+  }
+
+  skillPreviewHtml(skills = []) {
+    if (!Array.isArray(skills) || !skills.length) return "";
+
+    const entries = skills.map((skill) => {
+      const specialization = skill.specialization ? ` <span class="sii-preview-detail">(${this.escapeHtml(skill.specialization)} +${this.escapeHtml(skill.specializationBonus ?? 2)})</span>` : "";
+      return `<li>${this.recognized(`${skill.name} ${skill.points}`)}${specialization}</li>`;
+    });
+
+    return this.previewCard(game.i18n.localize(`${SII.MODULE_ID}.preview.skills`), `<ul class="sii-preview-list">${entries.join("")}</ul>`);
+  }
+
+  sectionPreviewHtml(sections = {}, itemLookup = this.buildWorldItemLookup()) {
+    const ignored = new Set(["skills"]);
+    const entries = Object.entries(sections).filter(([key, value]) => !ignored.has(key) && Array.isArray(value) && value.length);
+    if (!entries.length) return "";
+
+    const content = entries.map(([key, value]) => {
+      const title = this.sectionTitle(key);
+      const items = value.map((entry) => this.sectionEntryHtml(entry, itemLookup, key)).join("");
+      return `<section class="sii-preview-section"><h4>${this.escapeHtml(title)}</h4><ul class="sii-preview-list">${items}</ul></section>`;
+    }).join("");
+
+    return this.previewCard(game.i18n.localize(`${SII.MODULE_ID}.preview.sections`), content);
+  }
+
+  sectionEntryHtml(entry, itemLookup = this.buildWorldItemLookup(), sectionKey = "") {
+    const normalizedEntry = entry && typeof entry === "object" ? entry : { raw: String(entry ?? ""), name: String(entry ?? "") };
+
+    if (!this.isItemLookupSection(sectionKey)) {
+      const recognizedText = normalizedEntry.raw ?? normalizedEntry.name ?? "";
+      return `<li>${this.recognized(recognizedText)}</li>`;
+    }
+
+    const match = this.resolveWorldItemForEntry(normalizedEntry, itemLookup, sectionKey);
+
+    if (match) {
+      const quantityPrefix = this.quantityPrefix(normalizedEntry.raw ?? normalizedEntry.name ?? "");
+      const displayName = `${quantityPrefix}${match.item.name}`;
+      return `<li>${this.worldItemFound(displayName, match.item)}</li>`;
+    }
+
+    const missingText = normalizedEntry.raw ?? normalizedEntry.name ?? "";
+    return `<li>${this.worldItemMissing(missingText)}</li>`;
+  }
+
+  isItemLookupSection(sectionKey = "") {
+    return new Set([
+      "gear",
+      "weapons",
+      "spells",
+      "augmentations",
+      "programs",
+      "qualities",
+      "powers",
+      "adept_powers",
+      "vehicles"
+    ]).has(String(sectionKey ?? "").toLowerCase());
+  }
+
+  buildWorldItemLookup() {
+    const byName = new Map();
+    const items = game.items?.contents ?? Array.from(game.items ?? []);
+
+    for (const item of items) {
+      const itemName = item?.name ?? "";
+      for (const candidate of [itemName, this.stripSearchTypeWords(itemName)]) {
+        const key = this.normalizeItemLookupKey(candidate);
+        if (!key || byName.has(key)) continue;
+        byName.set(key, item);
+      }
+    }
+
+    return { byName };
+  }
+
+  summarizeItemMatches(actorData, itemLookup = this.buildWorldItemLookup()) {
+    const sections = actorData?.flags?.[SII.MODULE_ID]?.sections ?? {};
+    let found = 0;
+    let total = 0;
+
+    for (const [key, value] of Object.entries(sections)) {
+      if (!this.isItemLookupSection(key) || !Array.isArray(value)) continue;
+      for (const entry of value) {
+        total += 1;
+        if (this.resolveWorldItemForEntry(entry, itemLookup, key)) found += 1;
+      }
+    }
+
+    return { found, total };
+  }
+
+  resolveWorldItemForEntry(entry, itemLookup = this.buildWorldItemLookup(), sectionKey = "") {
+    if (!entry) return null;
+    const candidates = this.itemNameCandidates(entry, sectionKey);
+
+    for (const candidate of candidates) {
+      const key = this.normalizeItemLookupKey(candidate);
+      const item = itemLookup.byName.get(key);
+      if (item) return { item, candidate };
+    }
+
     return null;
   }
 
-  async createItemDocument(itemData, folderId) {
-    const payload = foundry.utils.deepClone(itemData);
-    const normalizedFolderId = folderId || null;
-    payload.folder = normalizedFolderId;
+  itemNameCandidates(entry, sectionKey = "") {
+    const raw = String(entry?.raw ?? entry?.name ?? "").trim();
+    const name = String(entry?.name ?? raw).trim();
+    const candidates = [];
+    const add = (value) => {
+      const cleaned = String(value ?? "").replace(/\s+/gu, " ").trim();
+      if (cleaned && !candidates.includes(cleaned)) candidates.push(cleaned);
+    };
 
-    const created = await Item.create(payload);
+    const sourceValues = [raw, name].filter(Boolean);
+    const trailingRating = this.extractTrailingEntryRating(sourceValues, sectionKey);
+    const rating = this.extractEntryRating(sourceValues) ?? trailingRating?.rating ?? null;
 
-    if (normalizedFolderId && created.folder?.id !== normalizedFolderId) {
-      await created.update({ folder: normalizedFolderId });
+    // Rating-specific candidates must be tried before generic names.
+    // Example: "Commlink (Device Rating 1)" should first try
+    // "Commlink Rating 1", because many imported rating items are named as
+    // "<name> Rating <n>".
+    if (rating) {
+      for (const value of sourceValues) {
+        for (const base of this.itemBaseNameVariants(value, sectionKey)) {
+          add(`${base} Rating ${rating}`);
+          add(`${this.stripSearchTypeWords(base)} Rating ${rating}`);
+        }
+      }
     }
 
-    return created;
-  }
+    for (const value of sourceValues) {
+      let candidate = String(value ?? "").trim();
+      if (!candidate) continue;
 
-  async createActorDocument(actorData, actorFolderId = null) {
-    const payload = foundry.utils.deepClone(actorData);
-    const normalizedFolderId = actorFolderId || null;
-    payload.folder = normalizedFolderId;
+      candidate = candidate.replace(/^\d+\s*x\s+/iu, "").trim();
+      add(candidate);
+      add(this.stripSearchTypeWords(candidate));
 
-    const created = await Actor.create(payload);
+      candidate = candidate.replace(/\s*\[[\s\S]*$/u, "").trim();
+      add(candidate);
+      add(this.stripSearchTypeWords(candidate));
 
-    if (normalizedFolderId && created.folder?.id !== normalizedFolderId) {
-      await created.update({ folder: normalizedFolderId });
+      candidate = candidate.replace(/\s*\([\s\S]*\)$/u, "").trim();
+      add(candidate);
+      add(this.stripSearchTypeWords(candidate));
+
+      const beforeWith = candidate.split(/\s+w\/\s+|\s+with\s+/iu)[0]?.trim();
+      add(beforeWith);
+      add(this.stripSearchTypeWords(beforeWith));
+
+      add(candidate.replace(/\b(?:device\s+rating|rating|dr)\s*\d+\b/igu, "").trim());
+      add(candidate.replace(/\s+\+\d+$/u, "").trim());
     }
 
-    return created;
+    return candidates;
   }
 
-  labelForCreatedDocument(document) {
-    const documentName = document?.documentName || document?.constructor?.documentName || "document";
-    return String(documentName).toLowerCase();
+  itemBaseNameVariants(value, sectionKey = "") {
+    const variants = [];
+    const add = (candidate) => {
+      const cleaned = String(candidate ?? "").replace(/\s+/gu, " ").trim();
+      if (cleaned && !variants.includes(cleaned)) variants.push(cleaned);
+    };
+
+    let candidate = String(value ?? "").trim();
+    if (!candidate) return variants;
+
+    candidate = candidate.replace(/^\d+\s*x\s+/iu, "").trim();
+    candidate = candidate.split(/\s+w\/\s+|\s+with\s+/iu)[0]?.trim() ?? candidate;
+    candidate = candidate.replace(/\s*\[[\s\S]*$/u, "").trim();
+    candidate = candidate.replace(/\b(?:device\s+rating|rating|dr)\s*\d+\b/igu, "").trim();
+    candidate = candidate.replace(/\s*\([^)]*\b(?:device\s+rating|rating|dr)\b[^)]*\)\s*$/iu, "").trim();
+    candidate = candidate.replace(/\s*\([^)]*\)\s*$/u, "").trim();
+    candidate = this.stripTrailingEntryRating(candidate, sectionKey);
+
+    add(candidate);
+    add(this.stripSearchTypeWords(candidate));
+
+    return variants;
   }
 
-  creationSummary(documents = []) {
-    const counts = documents.reduce((acc, document) => {
-      const documentName = document?.documentName || document?.constructor?.documentName || "Document";
-      acc[documentName] = (acc[documentName] ?? 0) + 1;
-      return acc;
-    }, {});
+  extractEntryRating(values = []) {
+    const joined = Array.isArray(values) ? values.join(" ") : String(values ?? "");
+    const match = String(joined ?? "").match(/\b(?:device\s+rating|rating|dr)\s*[:=]?\s*(\d+)\b/iu);
+    if (!match) return null;
 
-    const parts = Object.entries(counts).map(([documentName, count]) => {
-      const label = String(documentName).toLowerCase();
-      const plural = count === 1 ? label : `${label}s`;
-      return `${count} ${plural}`;
-    });
+    const rating = Number(match[1]);
+    return Number.isInteger(rating) && rating > 0 ? rating : null;
+  }
 
-    return `Created ${parts.join(" and ")}.`;
+  extractTrailingEntryRating(values = [], sectionKey = "") {
+    if (!this.sectionAllowsTrailingRating(sectionKey)) return null;
+
+    for (const value of Array.isArray(values) ? values : [values]) {
+      const candidate = String(value ?? "")
+        .replace(/^\d+\s*x\s+/iu, "")
+        .replace(/\s*\[[\s\S]*$/u, "")
+        .replace(/\s*\([^)]*\)\s*$/u, "")
+        .trim();
+      const match = candidate.match(/^(.+?)\s+(\d+)$/u);
+      if (!match) continue;
+
+      const rating = Number(match[2]);
+      if (Number.isInteger(rating) && rating > 0) return { base: match[1].trim(), rating };
+    }
+
+    return null;
+  }
+
+  stripTrailingEntryRating(value, sectionKey = "") {
+    if (!this.sectionAllowsTrailingRating(sectionKey)) return String(value ?? "").trim();
+    return String(value ?? "").replace(/\s+\d+$/u, "").trim();
+  }
+
+  sectionAllowsTrailingRating(sectionKey = "") {
+    return ["augmentations", "cyberware", "bioware"].includes(String(sectionKey ?? "").toLowerCase());
+  }
+
+  stripSearchTypeWords(value) {
+    const original = String(value ?? "").replace(/\s+/gu, " ").trim();
+    if (!original) return "";
+
+    const stripped = original
+      .replace(/\b(?:cyberdeck|cyberdecks|deck|decks|rcc|rigger\s+command\s+console)\b/igu, " ")
+      .replace(/\b(?:vehicle|vehicles|car|cars|bike|bikes|truck|trucks|van|vans|boat|boats)\b/igu, " ")
+      .replace(/\b(?:submarine|submarines|aircraft|rotorcraft|vtol|vstol)\b/igu, " ")
+      .replace(/\b(?:microdrone|microdrones|minidrone|minidrones|small\s+drone|small\s+drones|medium\s+drone|medium\s+drones|large\s+drone|large\s+drones|drone|drones)\b/igu, " ")
+      .replace(/\b(?:program|programs|software|spell|spells)\b/igu, " ")
+      .replace(/\s+/gu, " ")
+      .trim();
+
+    // Do not turn generic entries such as "Commlink", "RCC", or "Drone" into
+    // an empty search string. In those cases the generic name is still the best
+    // available candidate.
+    return stripped || original;
+  }
+
+  normalizeItemLookupKey(value) {
+    return String(value ?? "")
+      .normalize("NFKD")
+      .toLowerCase()
+      .replace(/[’']/gu, "")
+      .replace(/&/gu, "and")
+      .replace(/[^a-z0-9]+/gu, "")
+      .trim();
+  }
+
+  quantityPrefix(value) {
+    const match = String(value ?? "").match(/^(\d+)\s*x\s+/iu);
+    return match ? `${match[1]} × ` : "";
+  }
+
+  worldItemFound(value, item) {
+    const tooltip = item?.uuid ? ` title="${this.escapeHtml(item.uuid)}"` : "";
+    return `<span class="sii-preview-worlditem-found"${tooltip}><i class="fa-solid fa-circle-check"></i> ${this.escapeHtml(value)}</span>`;
+  }
+
+  worldItemMissing(value) {
+    return `<span class="sii-preview-worlditem-missing"><i class="fa-solid fa-circle-xmark"></i> ${this.escapeHtml(value)}</span>`;
+  }
+
+  warningPreviewHtml(warnings = []) {
+    if (!Array.isArray(warnings) || !warnings.length) return "";
+
+    const entries = warnings.map((warning) => `<li><span class="sii-preview-warning-token">${this.escapeHtml(warning)}</span></li>`).join("");
+    return this.previewCard(game.i18n.localize(`${SII.MODULE_ID}.preview.warnings`), `<ul class="sii-preview-list">${entries}</ul>`);
+  }
+
+  previewCard(title, content) {
+    return `<div class="sii-preview-card"><h3>${this.escapeHtml(title)}</h3>${content}</div>`;
+  }
+
+  statChip(label, value, { acknowledged = false } = {}) {
+    const renderedValue = acknowledged ? this.acknowledged(value) : this.recognized(value);
+    return `<span class="sii-stat-chip"><strong>${this.escapeHtml(label)}</strong> ${renderedValue}</span>`;
+  }
+
+  recognized(value) {
+    return `<span class="sii-preview-recognized">${this.escapeHtml(value)}</span>`;
+  }
+
+  acknowledged(value) {
+    return `<span class="sii-preview-acknowledged">${this.escapeHtml(value)}</span>`;
+  }
+
+  formatStatValue(value = {}) {
+    const base = value.base ?? 0;
+    const pool = value.pool ?? base;
+    const augment = value.augment ?? 0;
+    if (augment) return `${base} → ${pool} (${augment > 0 ? "+" : ""}${augment})`;
+    return base;
+  }
+
+  formatEssenceStatValue(value = {}) {
+    const parsed = this.formatStatValue(value);
+    return `${parsed} understood; actor starts at 6`;
+  }
+
+  sectionTitle(key) {
+    return String(key ?? "")
+      .replace(/_/gu, " ")
+      .replace(/\b\w/gu, (letter) => letter.toUpperCase());
+  }
+
+  escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/gu, "&amp;")
+      .replace(/</gu, "&lt;")
+      .replace(/>/gu, "&gt;")
+      .replace(/"/gu, "&quot;")
+      .replace(/'/gu, "&#39;");
+  }
+
+  static async onPreviewAction(_event, _target) {
+    const app = ShadowrunActorsImporterApp.APP_INSTANCE;
+    if (!app) return;
+    await app.renderActorPreview();
+  }
+
+  static async onImportAction(_event, _target) {
+    const app = ShadowrunActorsImporterApp.APP_INSTANCE;
+    const root = app?.element;
+    if (!app || !root) return;
+
+    try {
+      const input = app.getInputValue();
+      const actorType = root.querySelector("select[name='actorType']")?.value ?? "NPC";
+      await app.importParsedDocuments({ input, parserType: `actor.${actorType}`, itemFolderId: null });
+    } catch (error) {
+      console.error("Shadowrun actor importer failed", error);
+      ui.notifications?.error(`Import failed: ${error.message}`);
+    }
   }
 }

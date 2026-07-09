@@ -1,8 +1,11 @@
 export const SII = {
   MODULE_ID: "shadowrun-items-importer",
   APP_ID: "shadowrun-items-importer-app",
+  ACTOR_APP_ID: "shadowrun-actors-importer-app",
   TEMPLATES: {
-    WINDOW: "modules/shadowrun-items-importer/templates/importer-window.hbs"
+    WINDOW: "modules/shadowrun-items-importer/templates/importer-window.hbs",
+    ITEM_WINDOW: "modules/shadowrun-items-importer/templates/importer-window.hbs",
+    ACTOR_WINDOW: "modules/shadowrun-items-importer/templates/actor-importer-window.hbs"
   },
   SETTINGS: {
     DEBUG: "debug",

@@ -1,11 +1,11 @@
-<div class="sii-shell">
+<div class="sii-shell sii-item-shell">
   <section class="sii-editor">
     <textarea name="input" class="sii-input"
       placeholder="{{localize 'shadowrun-items-importer.placeholder'}}"></textarea>
   </section>
 
   <footer class="sii-footer">
-    <div class="sii-field-group">
+    <div class="sii-field-group sii-folder-field">
       <label class="sii-label" for="sii-folder">{{localize "shadowrun-items-importer.label.folder"}}</label>
       <select id="sii-folder" name="folderId">
         {{#each folders}}
@@ -14,7 +14,7 @@
       </select>
     </div>
 
-    <div class="sii-field-group">
+    <div class="sii-field-group sii-item-fields">
       <label class="sii-label" for="sii-item-type">{{localize "shadowrun-items-importer.label.type"}}</label>
       <select id="sii-item-type" name="itemType">
         {{#each itemTypes}}

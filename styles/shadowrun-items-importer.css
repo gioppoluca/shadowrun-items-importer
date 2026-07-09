@@ -53,6 +53,10 @@
   flex: 0 1 10rem;
 }
 
+.sii-actor-shell .sii-footer>.sii-field-group {
+  flex: 0 1 12rem;
+}
+
 .sii-gear-fields {
   display: flex;
   flex-direction: row;
@@ -88,4 +92,235 @@
 
 .sii-footer select {
   min-width: 0;
+}
+
+.sii-actor-window {
+  min-width: 980px;
+  min-height: 600px;
+}
+
+.sii-actor-toolbar {
+  display: flex;
+  align-items: end;
+  gap: 0.75rem;
+  flex: 0 0 auto;
+}
+
+.sii-actor-toolbar .sii-actor-type-field {
+  flex: 0 0 12rem;
+}
+
+.sii-actor-toolbar-actions {
+  margin-left: auto;
+}
+
+.sii-actor-preview-layout {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.75rem;
+}
+
+.sii-actor-pane {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border-light-tertiary, #999);
+  border-radius: 4px;
+  background: var(--color-bg-option, rgba(0, 0, 0, 0.12));
+  overflow: hidden;
+}
+
+.sii-pane-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--color-border-light-tertiary, #999);
+  background: var(--color-bg-header, rgba(0, 0, 0, 0.18));
+}
+
+.sii-pane-header h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.sii-preview-status {
+  font-size: 0.8rem;
+  opacity: 0.75;
+  white-space: nowrap;
+}
+
+.sii-preview-status-stale {
+  color: #9a6700;
+  opacity: 1;
+}
+
+.sii-actor-input {
+  border: 0;
+  border-radius: 0;
+  background: var(--color-bg, rgba(0, 0, 0, 0.10));
+  color: inherit;
+  font-family: var(--font-monospace, monospace);
+  line-height: 1.35;
+  padding: 0.6rem;
+}
+
+.sii-actor-preview {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.6rem;
+  background: var(--color-bg, rgba(0, 0, 0, 0.10));
+}
+
+.sii-preview-stale {
+  opacity: 0.72;
+}
+
+.sii-preview-placeholder,
+.sii-preview-error {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  text-align: center;
+  opacity: 0.8;
+}
+
+.sii-preview-error {
+  color: #8a1f11;
+}
+
+.sii-preview-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.sii-preview-card {
+  border: 1px solid var(--color-border-light-tertiary, #999);
+  border-radius: 4px;
+  padding: 0.55rem;
+  background: var(--color-bg, rgba(0, 0, 0, 0.10));
+}
+
+.sii-preview-card h3 {
+  margin: 0 0 0.45rem;
+  font-size: 0.95rem;
+}
+
+.sii-preview-actor-card {
+  border-left: 4px solid #16833a;
+}
+
+.sii-preview-card-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.sii-preview-card-subtitle {
+  margin-top: 0.2rem;
+  font-size: 0.82rem;
+  opacity: 0.75;
+}
+
+.sii-chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.sii-stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 1px solid var(--color-border-light-secondary, #aaa);
+  border-radius: 999px;
+  padding: 0.15rem 0.45rem;
+  background: rgba(0, 0, 0, 0.04);
+  font-size: 0.85rem;
+}
+
+.sii-preview-recognized {
+  display: inline-block;
+  border-radius: 3px;
+  padding: 0.02rem 0.2rem;
+  background: rgba(22, 131, 58, 0.16);
+  color: #126a31;
+  font-weight: 600;
+}
+
+
+.sii-preview-acknowledged {
+  display: inline-block;
+  border-radius: 3px;
+  padding: 0.02rem 0.2rem;
+  background: rgba(37, 99, 235, 0.16);
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.sii-preview-warning-token {
+  display: inline-block;
+  border-radius: 3px;
+  padding: 0.02rem 0.2rem;
+  background: rgba(184, 116, 0, 0.16);
+  color: #8a5800;
+  font-weight: 600;
+}
+
+.sii-preview-worlditem-found,
+.sii-preview-worlditem-missing {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 3px;
+  padding: 0.04rem 0.28rem;
+  font-weight: 600;
+}
+
+.sii-preview-worlditem-found {
+  background: rgba(22, 131, 58, 0.18);
+  color: #126a31;
+}
+
+.sii-preview-worlditem-missing {
+  background: rgba(219, 39, 119, 0.18);
+  color: #9d174d;
+}
+
+.sii-preview-list {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.sii-preview-list li + li {
+  margin-top: 0.2rem;
+}
+
+.sii-preview-detail {
+  opacity: 0.78;
+  font-size: 0.85rem;
+}
+
+.sii-preview-section + .sii-preview-section {
+  margin-top: 0.55rem;
+}
+
+.sii-preview-section h4 {
+  margin: 0 0 0.25rem;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 980px) {
+  .sii-actor-preview-layout {
+    grid-template-columns: 1fr;
+  }
 }
