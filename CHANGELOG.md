@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.9] - 2026-07-09
+### :sparkles: New Features
+- [`c8e0a46`](https://github.com/gioppoluca/shadowrun-items-importer/commit/c8e0a46e00e57c9e0c23240d3f3b7b5ac5d1a671) - new parsers *(commit by [@gioppoluca](https://github.com/gioppoluca))*
+- [`42f758b`](https://github.com/gioppoluca/shadowrun-items-importer/commit/42f758bfaeaa814cba5f779ba10e9dcd93782c7e) - new parsers *(commit by [@gioppoluca](https://github.com/gioppoluca))*
+- [`cfafdf9`](https://github.com/gioppoluca/shadowrun-items-importer/commit/cfafdf9aa791a79a2a88b22c2b6e5c796a0d70fe) - import actors NPC *(commit by [@gioppoluca](https://github.com/gioppoluca))*
+- [`e826721`](https://github.com/gioppoluca/shadowrun-items-importer/commit/e8267219079940de8336f3ce81e242bf5fa628d0) - import critters and spirits *(commit by [@gioppoluca](https://github.com/gioppoluca))*
+
+
 ## [1.13.8] - 2026-05-19
 ### :sparkles: New Features
 - [`8465a5a`](https://github.com/gioppoluca/shadowrun-items-importer/commit/8465a5a508b2f7889ac00f1e08b3c09b75d52b38) - vehicles and bodyware *(commit by [@gioppoluca](https://github.com/gioppoluca))*
@@ -52,3 +60,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [1.13.6]: https://github.com/gioppoluca/shadowrun-items-importer/compare/1.13.5...1.13.6
 [1.13.7]: https://github.com/gioppoluca/shadowrun-items-importer/compare/1.13.6...1.13.7
 [1.13.8]: https://github.com/gioppoluca/shadowrun-items-importer/compare/1.13.7...1.13.8
+[1.13.9]: https://github.com/gioppoluca/shadowrun-items-importer/compare/1.13.8...1.13.9
