@@ -7,7 +7,9 @@ export class ShadowrunItemsImporterUtils {
     "focus",
     "gear",
     "metamagic",
+    "mod",
     "quality",
+    "sin",
     "software",
     "spell"
   ]);
@@ -21,8 +23,12 @@ export class ShadowrunItemsImporterUtils {
     // Electronics / Matrix gear.
     "ELECTRONICS.COMMLINK",
     "ELECTRONICS.CYBERDECK",
+    "ELECTRONICS.OPTICAL",
+    "ELECTRONICS.AUDIO",
+    "SOFTWARE.AUTOSOFT",
     "SOFTWARE.BASIC_PROGRAM",
     "SOFTWARE.HACKING_PROGRAM",
+    "SOFTWARE.SKILLSOFT",
     "SOFTWARE.RIGGER_PROGRAM",
     "SOFTWARE.OTHER_PROGRAMS",
 
@@ -54,6 +60,13 @@ export class ShadowrunItemsImporterUtils {
     "WEAPON_SPECIAL.*"
   ]);
 
+
+  static ACTIVE_MOD_SUBTYPES = Object.freeze([
+    "accessory_weapon",
+    "visual_enhancement",
+    "audio_enhancement"
+  ]);
+
   static isActiveItemParser(itemType) {
     const normalizedType = String(itemType ?? "").trim().toLowerCase();
     if (!normalizedType) return false;
@@ -80,6 +93,12 @@ export class ShadowrunItemsImporterUtils {
       const [type] = String(entry ?? "").split(".");
       return type === normalizedType;
     });
+  }
+
+  static isActiveModParser(modSubtype) {
+    const normalizedSubtype = String(modSubtype ?? "").trim().toLowerCase();
+    if (!normalizedSubtype) return false;
+    return this.ACTIVE_MOD_SUBTYPES.includes(normalizedSubtype);
   }
 
   static optionWithParserStatus(option, parserActive) {
@@ -126,6 +145,21 @@ export class ShadowrunItemsImporterUtils {
 
   static getGearSubtypeOptions(gearType) {
     const subtypes = CONFIG.SR6.GEAR_SUBTYPES[gearType] ?? {};
+    return Object.entries(subtypes).map(([key, translationKey]) => ({
+      value: key,
+      label: game.i18n.localize(translationKey)
+    }));
+  }
+
+
+  static getModSubtypeOptions() {
+    // shadowrun6-eden exposes the modern item subtype registry below NEW.
+    // Keep the legacy path as a fallback so the importer remains tolerant of
+    // system-side configuration changes between Foundry/system releases.
+    const subtypes = CONFIG.SR6?.NEW?.ITEM_TYPES?.mod?.types
+      ?? CONFIG.SR6?.ITEM_TYPES?.mod?.types
+      ?? {};
+
     return Object.entries(subtypes).map(([key, translationKey]) => ({
       value: key,
       label: game.i18n.localize(translationKey)

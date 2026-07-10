@@ -55,5 +55,14 @@ export class ShadowrunItemsImporterConfig {
       type: String,
       default: ""
     });
+
+    game.settings.register(SII.MODULE_ID, SII.SETTINGS.LAST_MOD_SUBTYPE, {
+      name: `${SII.MODULE_ID}.settings.lastModSubtype.name`,
+      hint: `${SII.MODULE_ID}.settings.lastModSubtype.hint`,
+      scope: "client",
+      config: false,
+      type: String,
+      default: ""
+    });
   }
 }

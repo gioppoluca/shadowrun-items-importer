@@ -57,7 +57,8 @@
   flex: 0 1 12rem;
 }
 
-.sii-gear-fields {
+.sii-gear-fields,
+.sii-mod-fields {
   display: flex;
   flex-direction: row;
   align-items: end;
@@ -66,7 +67,8 @@
   min-width: 0;
 }
 
-.sii-gear-fields .sii-field-group {
+.sii-gear-fields .sii-field-group,
+.sii-mod-fields .sii-field-group {
   flex: 1 1 8rem;
   min-width: 0;
 }

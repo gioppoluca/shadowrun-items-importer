@@ -174,7 +174,10 @@ export class ShadowrunItemsImporterApp extends ShadowrunImporterBaseApp {
 
     const savedType = game.settings.get(SII.MODULE_ID, SII.SETTINGS.LAST_TYPE) || itemTypes[0]?.value || "";
     const legacyGearParts = savedType.startsWith("gear.") ? savedType.split(".") : [];
-    const selectedItemType = legacyGearParts.length ? "gear" : savedType;
+    const legacyModParts = savedType.startsWith("mod.") ? savedType.split(".") : [];
+    const selectedItemType = legacyGearParts.length
+      ? "gear"
+      : (legacyModParts.length ? "mod" : savedType);
 
     const gearTypeOptions = Utils.getGearTypeOptions();
     const selectedGearType = game.settings.get(SII.MODULE_ID, SII.SETTINGS.LAST_GEAR_TYPE)
@@ -186,6 +189,12 @@ export class ShadowrunItemsImporterApp extends ShadowrunImporterBaseApp {
     const selectedGearSubtype = game.settings.get(SII.MODULE_ID, SII.SETTINGS.LAST_GEAR_SUBTYPE)
       || legacyGearParts[2]
       || gearSubtypeOptions[0]?.value
+      || "";
+
+    const modSubtypeOptions = Utils.getModSubtypeOptions();
+    const selectedModSubtype = game.settings.get(SII.MODULE_ID, SII.SETTINGS.LAST_MOD_SUBTYPE)
+      || legacyModParts[1]
+      || modSubtypeOptions[0]?.value
       || "";
 
     return {
@@ -209,9 +218,11 @@ export class ShadowrunItemsImporterApp extends ShadowrunImporterBaseApp {
         selected: type.value === selectedItemType
       }, Utils.isActiveItemParser(type.value))),
       isGearSelected: selectedItemType === "gear",
+      isModSelected: selectedItemType === "mod",
       selectedItemTypeParserActive: Utils.isActiveItemParser(selectedItemType),
       selectedGearTypeParserActive: Utils.isActiveGearType(selectedGearType),
       selectedGearSubtypeParserActive: Utils.isActiveGearParser(selectedGearType, selectedGearSubtype),
+      selectedModSubtypeParserActive: Utils.isActiveModParser(selectedModSubtype),
       gearTypes: gearTypeOptions.map((type) => Utils.optionWithParserStatus({
         value: type.value,
         label: type.label,
@@ -221,7 +232,12 @@ export class ShadowrunItemsImporterApp extends ShadowrunImporterBaseApp {
         value: type.value,
         label: type.label,
         selected: type.value === selectedGearSubtype
-      }, Utils.isActiveGearParser(selectedGearType, type.value)))
+      }, Utils.isActiveGearParser(selectedGearType, type.value))),
+      modSubtypes: modSubtypeOptions.map((type) => Utils.optionWithParserStatus({
+        value: type.value,
+        label: type.label,
+        selected: type.value === selectedModSubtype
+      }, Utils.isActiveModParser(type.value)))
     };
   }
 
@@ -239,7 +255,9 @@ export class ShadowrunItemsImporterApp extends ShadowrunImporterBaseApp {
     const itemTypeSelect = root.querySelector("select[name='itemType']");
     const gearTypeSelect = root.querySelector("select[name='gearType']");
     const gearSubtypeSelect = root.querySelector("select[name='gearSubtype']");
+    const modSubtypeSelect = root.querySelector("select[name='modSubtype']");
     const gearFields = root.querySelector(".sii-gear-fields");
+    const modFields = root.querySelector(".sii-mod-fields");
 
     const setSelectParserStatus = (select, parserActive) => {
       if (!select) return;
@@ -250,11 +268,14 @@ export class ShadowrunItemsImporterApp extends ShadowrunImporterBaseApp {
       const itemType = itemTypeSelect?.value ?? "";
       const gearType = gearTypeSelect?.value ?? "";
       const gearSubtype = gearSubtypeSelect?.value ?? "";
+      const modSubtype = modSubtypeSelect?.value ?? "";
       const showGearFields = itemType === "gear";
+      const showModFields = itemType === "mod";
 
       setSelectParserStatus(itemTypeSelect, Utils.isActiveItemParser(itemType));
       setSelectParserStatus(gearTypeSelect, showGearFields && Utils.isActiveGearType(gearType));
       setSelectParserStatus(gearSubtypeSelect, showGearFields && Utils.isActiveGearParser(gearType, gearSubtype));
+      setSelectParserStatus(modSubtypeSelect, showModFields && Utils.isActiveModParser(modSubtype));
     };
 
     const refreshGearFields = () => {
@@ -262,8 +283,10 @@ export class ShadowrunItemsImporterApp extends ShadowrunImporterBaseApp {
       const gearType = gearTypeSelect?.value ?? "";
       const previousSubtype = gearSubtypeSelect?.value ?? "";
       const showGearFields = itemType === "gear";
+      const showModFields = itemType === "mod";
 
       if (gearFields) gearFields.style.display = showGearFields ? "" : "none";
+      if (modFields) modFields.style.display = showModFields ? "" : "none";
       if (!gearSubtypeSelect) {
         refreshParserStatus();
         return;
@@ -297,6 +320,7 @@ export class ShadowrunItemsImporterApp extends ShadowrunImporterBaseApp {
     itemTypeSelect?.addEventListener("change", refreshGearFields);
     gearTypeSelect?.addEventListener("change", refreshGearFields);
     gearSubtypeSelect?.addEventListener("change", refreshParserStatus);
+    modSubtypeSelect?.addEventListener("change", refreshParserStatus);
 
     refreshGearFields();
   }
@@ -312,7 +336,10 @@ export class ShadowrunItemsImporterApp extends ShadowrunImporterBaseApp {
       const baseType = root.querySelector("select[name='itemType']")?.value ?? "";
       const gearType = root.querySelector("select[name='gearType']")?.value ?? "";
       const gearSubtype = root.querySelector("select[name='gearSubtype']")?.value ?? "";
-      const parserType = baseType === "gear" ? `gear.${gearType}.${gearSubtype}` : baseType;
+      const modSubtype = root.querySelector("select[name='modSubtype']")?.value ?? "";
+      const parserType = baseType === "gear"
+        ? `gear.${gearType}.${gearSubtype}`
+        : (baseType === "mod" ? `mod.${modSubtype}` : baseType);
 
       if (game.settings.get(SII.MODULE_ID, SII.SETTINGS.REMEMBER_FOLDER)) {
         await game.settings.set(SII.MODULE_ID, SII.SETTINGS.LAST_FOLDER, folderId);
@@ -322,6 +349,9 @@ export class ShadowrunItemsImporterApp extends ShadowrunImporterBaseApp {
       if (baseType === "gear") {
         await game.settings.set(SII.MODULE_ID, SII.SETTINGS.LAST_GEAR_TYPE, gearType);
         await game.settings.set(SII.MODULE_ID, SII.SETTINGS.LAST_GEAR_SUBTYPE, gearSubtype);
+      }
+      if (baseType === "mod") {
+        await game.settings.set(SII.MODULE_ID, SII.SETTINGS.LAST_MOD_SUBTYPE, modSubtype);
       }
 
       await app.importParsedDocuments({ input, parserType, itemFolderId: folderId || null });

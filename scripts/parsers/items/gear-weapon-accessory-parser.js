@@ -1,33 +1,24 @@
 import { BaseItemParser } from "./base-item-parser.js";
 
 /**
- * Parser for Shadowrun 6 Eden weapon accessory gear blocks.
+ * Parser for Shadowrun 6 Eden weapon accessory tables.
  *
- * The source text follows the same shape as weapon imports:
- *   1. one or more requested accessory blocks, optionally separated by "---"
- *   2. a shared table containing many accessories
+ * Supported layouts:
+ *   - table only: every accessory row is imported
+ *   - prose blocks before the table
+ *   - prose blocks after the table
  *
- * Example:
- *   Spare clip
- *   description...
- *   ---
- *   Speed loader
- *   description...
+ * Prose blocks are separated by a line made of dashes and their first line is
+ * matched against the accessory name in the table.
  *
- *   ACCESSORY MOUNT AVAILABILITY COST
- *   Spare clip — 2 5¥
- *   Speed loader — 1 25¥
- *
- * We parse the shared table once and create only the requested accessories.
- * Table rows are collected until a token ending in "¥" so wrapped rows remain
- * safe. The ACCESSORY table does not have fixed-width columns; therefore the
- * parser works backwards from COST and AVAILABILITY, then interprets the text
- * between accessory name and availability as the mount.
+ * Shadowrun 6 Eden stores weapon accessories as Item type "mod" with system
+ * type "accessory_weapon". The system data model currently has no Mount field,
+ * so the value from that column is appended to the item description.
  */
 export class GearWeaponAccessoryParser extends BaseItemParser {
   constructor({ text, type, folderId }) {
     super({ text, type, folderId });
-    this.modType = "weapon_mod";
+    this.modType = "accessory_weapon";
   }
 
   parse() {
@@ -47,9 +38,31 @@ export class GearWeaponAccessoryParser extends BaseItemParser {
     }
 
     const introLines = lines.slice(0, headerIndex);
-    const tableLines = lines.slice(headerIndex + 1);
-    const requestedBlocks = this.parseRequestedAccessoryBlocks(introLines);
+    const afterHeaderLines = lines.slice(headerIndex + 1);
+    const { tableLines, trailingLines } = this.splitAccessoryTableLines(afterHeaderLines);
     const tableRows = this.parseAccessoryRows(tableLines);
+
+    if (!tableRows.length) {
+      ui.notifications?.warn("No weapon accessory table rows were found.");
+      return [];
+    }
+
+    const introBlocks = this.parseRequestedAccessoryBlocks(introLines);
+    const trailingBlocks = this.parseRequestedAccessoryBlocks(trailingLines);
+    const requestedBlocks = this.selectRequestedAccessoryBlocks(introBlocks, trailingBlocks, tableRows);
+
+    // A bare table means "import the complete table". When prose blocks are
+    // present, preserve the previous selective-import behaviour and create only
+    // the rows named by those blocks.
+    if (!requestedBlocks.length) {
+      const items = tableRows.map((row) => this.toFoundryItem({
+        name: row.name,
+        description: "",
+        row,
+        warnings: []
+      }));
+      return items.length === 1 ? items[0] : items;
+    }
 
     const items = [];
     const emittedKeys = new Set();
@@ -84,10 +97,47 @@ export class GearWeaponAccessoryParser extends BaseItemParser {
   }
 
   findAccessoryTableHeaderIndex(lines) {
-    return lines.findIndex((line) => /^ACCESSORY\s+MOUNT\s+AVAILABILITY\s+COST\b/i.test(line));
+    return lines.findIndex((line) => this.isAccessoryTableHeader(line));
   }
 
-  parseRequestedAccessoryBlocks(lines) {
+  isAccessoryTableHeader(line) {
+    return /^ACCESSORY\s+MOUNT\s+AVAILABILITY\s+COST\b/i.test(String(line ?? "").trim());
+  }
+
+  /**
+   * Separates table rows from prose extracted after the table. Accessory rows
+   * can wrap, but their cost always terminates with the nuyen symbol.
+   */
+  splitAccessoryTableLines(lines = []) {
+    const sourceLines = Array.isArray(lines) ? lines : [];
+    let buffer = [];
+    let lastValidRowEnd = -1;
+
+    for (let index = 0; index < sourceLines.length; index += 1) {
+      const cleaned = String(sourceLines[index] ?? "").trim();
+      if (!cleaned || this.isAccessoryTableHeader(cleaned)) continue;
+
+      buffer.push(cleaned);
+      if (!/¥\s*$/u.test(cleaned)) continue;
+
+      const parsed = this.parseAccessoryRow(buffer.join(" "));
+      if (parsed) {
+        lastValidRowEnd = index;
+        buffer = [];
+      }
+    }
+
+    if (lastValidRowEnd < 0) {
+      return { tableLines: sourceLines, trailingLines: [] };
+    }
+
+    return {
+      tableLines: sourceLines.slice(0, lastValidRowEnd + 1),
+      trailingLines: sourceLines.slice(lastValidRowEnd + 1)
+    };
+  }
+
+  parseRequestedAccessoryBlocks(lines = []) {
     const blocks = [];
     let current = [];
 
@@ -110,7 +160,33 @@ export class GearWeaponAccessoryParser extends BaseItemParser {
     }
     flush();
 
-    return blocks.length ? blocks : [{ name: "Unnamed Accessory", descriptionLines: [] }];
+    return blocks;
+  }
+
+  selectRequestedAccessoryBlocks(introBlocks, trailingBlocks, rows) {
+    const before = Array.isArray(introBlocks) ? introBlocks : [];
+    const after = Array.isArray(trailingBlocks) ? trailingBlocks : [];
+
+    if (!before.length && !after.length) return [];
+    if (!before.length) return after;
+    if (!after.length) return before;
+
+    return this.scoreRequestedAccessoryBlocks(after, rows) > this.scoreRequestedAccessoryBlocks(before, rows)
+      ? after
+      : before;
+  }
+
+  scoreRequestedAccessoryBlocks(blocks, rows) {
+    return blocks.reduce((score, block) => {
+      const wanted = this.normalizeComparableName(block?.name);
+      if (!wanted) return score;
+
+      const exact = rows.some((row) => row.normalizedName === wanted);
+      if (exact) return score + 100;
+
+      const loose = rows.some((row) => row.normalizedName.includes(wanted) || wanted.includes(row.normalizedName));
+      return score + (loose ? 10 : 0);
+    }, 0);
   }
 
   parseAccessoryRows(tableLines) {
@@ -119,8 +195,7 @@ export class GearWeaponAccessoryParser extends BaseItemParser {
 
     for (const line of tableLines) {
       const cleaned = String(line ?? "").trim();
-      if (!cleaned) continue;
-      if (/^ACCESSORY\s+MOUNT\s+AVAILABILITY\s+COST\b/i.test(cleaned)) continue;
+      if (!cleaned || this.isAccessoryTableHeader(cleaned)) continue;
 
       buffer.push(cleaned);
 
@@ -148,23 +223,21 @@ export class GearWeaponAccessoryParser extends BaseItemParser {
     if (availabilityIndex <= 0) return null;
 
     const cost = tokens.slice(availabilityIndex + 1).join(" ");
-    const availability = tokens[availabilityIndex];
+    const availabilityRaw = tokens[availabilityIndex];
     const beforeAvailability = tokens.slice(0, availabilityIndex);
-
-    const mountStartIndex = this.findMountStartIndex(beforeAvailability);
-    const nameTokens = mountStartIndex >= 0 ? beforeAvailability.slice(0, mountStartIndex) : beforeAvailability.slice(0, -1);
-    const mountTokens = mountStartIndex >= 0 ? beforeAvailability.slice(mountStartIndex) : beforeAvailability.slice(-1);
+    const { nameTokens, mountTokens } = this.extractNameAndMount(beforeAvailability);
 
     const name = nameTokens.join(" ").trim();
     const mount = mountTokens.join(" ").trim();
-    if (!name) return null;
+    if (!name || !mount) return null;
 
     return {
       raw: normalized,
       name,
       normalizedName: this.normalizeComparableName(name),
       mount,
-      availability,
+      availabilityRaw,
+      availability: this.normalizeAvailability(availabilityRaw),
       cost
     };
   }
@@ -187,18 +260,48 @@ export class GearWeaponAccessoryParser extends BaseItemParser {
   }
 
   looksLikeAvailability(token) {
-    return /^(?:\d+|[-–—])(?:\([A-Z]\))?$/iu.test(String(token ?? ""));
+    return /^(?:\d+|[-–—])(?:\([A-Z]\)|[A-Z])?$/iu.test(String(token ?? ""));
   }
 
-  findMountStartIndex(tokens) {
-    const mountWords = new Set(["—", "barrel", "top", "under"]);
+  normalizeAvailability(value) {
+    const raw = String(value ?? "").trim();
+    if (!raw || /^[-–—]$/u.test(raw)) return "";
 
-    for (let i = 0; i < tokens.length; i += 1) {
-      const token = String(tokens[i] ?? "").toLowerCase();
-      if (mountWords.has(token)) return i;
+    const match = raw.match(/^(\d+)\s*(?:\(([A-Z])\)|([A-Z]))?$/iu);
+    if (!match) return raw;
+
+    const suffix = (match[2] ?? match[3] ?? "").toUpperCase();
+    return `${match[1]}${suffix}`;
+  }
+
+  /**
+   * Mount values in the core table are: —, Barrel, Top, Under, Top or Under.
+   * Parse them from the end so an accessory name containing one of those words
+   * is not truncated accidentally.
+   */
+  extractNameAndMount(tokens) {
+    const source = Array.isArray(tokens) ? tokens : [];
+    const lowered = source.map((token) => String(token ?? "").toLowerCase());
+
+    if (source.length >= 3 && lowered.slice(-3).join(" ") === "top or under") {
+      return {
+        nameTokens: source.slice(0, -3),
+        mountTokens: source.slice(-3)
+      };
     }
 
-    return -1;
+    const finalToken = lowered.at(-1);
+    if (["—", "barrel", "top", "under"].includes(finalToken)) {
+      return {
+        nameTokens: source.slice(0, -1),
+        mountTokens: source.slice(-1)
+      };
+    }
+
+    return {
+      nameTokens: source.slice(0, -1),
+      mountTokens: source.slice(-1)
+    };
   }
 
   findMatchingRow(name, rows) {
@@ -233,10 +336,8 @@ export class GearWeaponAccessoryParser extends BaseItemParser {
 
   /**
    * Shadowrun 6 accessory prices use English-style thousands separators.
-   *
-   * Examples:
-   *   - 2,500¥ -> price 2500
-   *   - +500¥ -> price 500, priceDef "+500¥" so the additive nature is visible
+   * A leading plus sign, as in +500¥, is descriptive but the stored numeric
+   * price remains 500.
    */
   parseCost(rawCost) {
     const original = String(rawCost ?? "").trim();
@@ -251,32 +352,19 @@ export class GearWeaponAccessoryParser extends BaseItemParser {
       };
     }
 
-    const normalizedNumber = withoutCurrency.replace(/[,_\s]/gu, "");
+    const normalizedNumber = withoutCurrency.replace(/[,+_\s]/gu, "");
     const value = Number(normalizedNumber);
 
     return {
       price: Number.isFinite(value) ? Math.abs(value) : 0,
-      priceDef: Number.isFinite(value) ? original : original
+      priceDef: original
     };
   }
 
   toFoundryItem({ name, description = "", row = null, warnings = [] } = {}) {
     const parsedCost = this.parseCost(row?.cost);
-
     const mountNote = row?.mount ? `<p><strong>Mount:</strong> ${row.mount}</p>` : "";
-    //const importedRowNote = row?.raw ? `<p><strong>Imported table row:</strong> ${row.raw}</p>` : "";
-    const notes = [mountNote].filter(Boolean).join("");
-
-    /*
-     * Shadowrun 6 Eden stores weapon accessories as Item type "mod", not as
-     * gear. The relevant system type is "weapon_mod".
-     *
-     * The ACCESSORY table contains a Mount column, but the Eden mod template has
-     * no dedicated mount field. We therefore preserve the mount in the rendered
-     * description/notes and in module flags, while keeping the actual item shape
-     * aligned with an exported gear-mod item.
-     */
-    const finalDescription = [description ?? "", notes].filter(Boolean).join("");
+    const finalDescription = [description ?? "", mountNote].filter(Boolean).join("");
 
     return {
       name: name || row?.name || "Unnamed Accessory",

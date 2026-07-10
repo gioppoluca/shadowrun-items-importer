@@ -43,6 +43,17 @@
       </div>
     </div>
 
+    <div class="sii-mod-fields" style="{{#unless isModSelected}}display:none;{{/unless}}">
+      <div class="sii-field-group">
+        <label class="sii-label" for="sii-mod-subtype">Mod subtype</label>
+        <select id="sii-mod-subtype" name="modSubtype" class="{{#if selectedModSubtypeParserActive}}sii-select-parser-active{{/if}}">
+          {{#each modSubtypes}}
+          <option value="{{this.value}}" class="{{this.parserStatusClass}}" data-parser-active="{{this.parserActive}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+          {{/each}}
+        </select>
+      </div>
+    </div>
+
     <div class="sii-actions">
       <button type="button" class="sii-primary" data-action="importItems">
         <i class="fa-solid fa-file-import"></i>

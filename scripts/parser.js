@@ -7,10 +7,16 @@ import { SpellItemParser } from "./parsers/items/spell-item-parser.js";
 import { FocusItemParser } from "./parsers/items/focus-item-parser.js";
 import { GearWeaponParser } from "./parsers/items/gear-weapon-parser.js";
 import { GearWeaponAccessoryParser } from "./parsers/items/gear-weapon-accessory-parser.js";
+import { GearVisualEnhancementParser } from "./parsers/items/gear-visual-enhancement-parser.js";
+import { GearAudioEnhancementParser } from "./parsers/items/gear-audio-enhancement-parser.js";
 import { GearVehicleItemParser } from "./parsers/items/gear-vehicle-item-parser.js";
 import { GearElectronicsCyberdeckParser } from "./parsers/items/gear-electronics-cyberdeck-parser.js";
 import { GearElectronicsCommlinkParser } from "./parsers/items/gear-electronics-commlink-parser.js";
+import { GearElectronicOpticalParser } from "./parsers/items/gear-electronic-optical-parser.js";
+import { GearElectronicAuditoryParser } from "./parsers/items/gear-electronic-auditory-parser.js";
 import { GearSoftwareProgramParser } from "./parsers/items/gear-software-program-parser.js";
+import { GearSoftwareParser } from "./parsers/items/gear-software-parser.js";
+import { SinItemParser } from "./parsers/items/sin-item-parser.js";
 import { GearArmorParser } from "./parsers/items/gear-armor-parser.js";
 import { GearCyberwareHeadwareParser } from "./parsers/items/cyberware/gear-cyberware-headware-parser.js";
 import { GearCyberwareEyewareParser } from "./parsers/items/cyberware/gear-cyberware-eyeware-parser.js";
@@ -164,6 +170,14 @@ export class ShadowrunItemsImporterParser {
       || /\bCOMMLINKS?\b[\s\S]*?\bITEM\b[\s\S]*?\bDEVICE\s+RATING\b[\s\S]*?\bATTRIBUTES\s*\(\s*D\s*\/\s*F\s*\)[\s\S]*?\bACTIVE\s+PROGRAM\s+SLOTS\b[\s\S]*?\bAVAIL\b[\s\S]*?\bCOST\b/u.test(normalizedText);
   }
 
+  isElectronicsOpticalInput(itemType) {
+    return String(itemType ?? "").trim().toUpperCase() === "GEAR.ELECTRONICS.OPTICAL";
+  }
+
+  isElectronicsAuditoryInput(itemType) {
+    return String(itemType ?? "").trim().toUpperCase() === "GEAR.ELECTRONICS.AUDIO";
+  }
+
 
   isArmorInput(itemType, rawText) {
     const normalizedType = String(itemType ?? "").toUpperCase();
@@ -171,6 +185,19 @@ export class ShadowrunItemsImporterParser {
 
     return normalizedType.startsWith("GEAR.ARMOR")
       || /\bTYPE\b\s+DEFENSE\s+RATING\s+CAPACITY\s+AVAIL(?:ABILITY)?\s+COST\b/u.test(normalizedText);
+  }
+
+  isSinInput(itemType) {
+    return String(itemType ?? "").trim().toLowerCase() === "sin";
+  }
+
+  isSoftwareTableInput(itemType, rawText) {
+    const normalizedType = String(itemType ?? "").toUpperCase();
+    const normalizedText = String(rawText ?? "").replace(/\r\n?/g, "\n");
+
+    return /^\s*SOFTWARE\s+AVAIL(?:ABILITY)?\s+COST\s*$/imu.test(normalizedText)
+      || (normalizedType.startsWith("GEAR.SOFTWARE")
+        && /^\s*SOFTWARE\s+AVAIL(?:ABILITY)?\s+COST\s*$/imu.test(normalizedText));
   }
 
   isSoftwareProgramInput(itemType, rawText) {
@@ -216,12 +243,42 @@ export class ShadowrunItemsImporterParser {
       || /^HAND\s+(?:ACC|ACCEL)\b[\s\S]*?\bCOST\b/mi.test(normalizedText);
   }
 
+  isAudioEnhancementInput(itemType, rawText) {
+    const normalizedType = String(itemType ?? "").trim().toLowerCase();
+    const normalizedText = String(rawText ?? "");
+    const hasEnhancementHeader = /^ENHANCEMENT\s+CAPACITY\s+AVAIL(?:ABILITY)?\s+COST\b/mi.test(normalizedText);
+
+    if (normalizedType === "mod.audio_enhancement" || normalizedType === "audio_enhancement") return true;
+    if (normalizedType.startsWith("mod.")) return false;
+
+    return normalizedType === "mod"
+      && hasEnhancementHeader
+      && /(?:^|\n)\s*(?:Audio enhancement|Select sound filter|Spatial recognizer)\b/mi.test(normalizedText);
+  }
+
+  isVisualEnhancementInput(itemType, rawText) {
+    const normalizedType = String(itemType ?? "").trim().toLowerCase();
+    const normalizedText = String(rawText ?? "");
+    const hasEnhancementHeader = /^ENHANCEMENT\s+CAPACITY\s+AVAIL(?:ABILITY)?\s+COST\b/mi.test(normalizedText);
+
+    if (normalizedType === "mod.visual_enhancement" || normalizedType === "visual_enhancement") return true;
+    if (normalizedType.startsWith("mod.")) return false;
+
+    return normalizedType === "mod"
+      && hasEnhancementHeader
+      && /(?:^|\n)\s*(?:Flare compensation|Image link|Low-light vision|Smartlink|Thermographic vision|Ultrasound link|Vision enhancement|Vision magnification)\b/mi.test(normalizedText);
+  }
+
   isWeaponAccessoryInput(itemType, rawText) {
-    const normalizedType = String(itemType ?? "").toUpperCase();
+    const normalizedType = String(itemType ?? "").trim().toLowerCase();
     const normalizedText = String(rawText ?? "");
 
-    return normalizedType.includes("ACCESSOR")
-      || /^ACCESSORY\s+MOUNT\s+AVAILABILITY\s+COST\b/mi.test(normalizedText);
+    if (["mod.accessory_weapon", "accessory_weapon", "gear.accessory.accessory"].includes(normalizedType)) {
+      return true;
+    }
+    if (normalizedType.startsWith("mod.")) return false;
+
+    return /^ACCESSORY\s+MOUNT\s+AVAILABILITY\s+COST\b/mi.test(normalizedText);
   }
 
   parseInput(rawText, folderId, itemType) {
@@ -245,6 +302,11 @@ export class ShadowrunItemsImporterParser {
 
     if (this.isNpcActorInput(itemType, rawText)) {
       parser = new NpcStatblockParser({ text: rawText, type: itemType, folderId });
+      return parser.parse();
+    }
+
+    if (this.isSinInput(itemType)) {
+      parser = new SinItemParser({ text: rawText, type: itemType, folderId });
       return parser.parse();
     }
 
@@ -300,11 +362,31 @@ export class ShadowrunItemsImporterParser {
       return parser.parse();
     }
 
+    if (this.isAudioEnhancementInput(itemType, rawText)) {
+      parser = new GearAudioEnhancementParser({ text: rawText, type: itemType, folderId });
+      return parser.parse();
+    }
+
+    if (this.isVisualEnhancementInput(itemType, rawText)) {
+      parser = new GearVisualEnhancementParser({ text: rawText, type: itemType, folderId });
+      return parser.parse();
+    }
+
     if (this.isWeaponAccessoryInput(itemType, rawText)) {
       parser = new GearWeaponAccessoryParser({ text: rawText, type: itemType, folderId });
       return parser.parse();
     }
 
+
+    if (this.isElectronicsAuditoryInput(itemType)) {
+      parser = new GearElectronicAuditoryParser({ text: rawText, type: itemType, folderId });
+      return parser.parse();
+    }
+
+    if (this.isElectronicsOpticalInput(itemType)) {
+      parser = new GearElectronicOpticalParser({ text: rawText, type: itemType, folderId });
+      return parser.parse();
+    }
 
     if (this.isElectronicsCyberdeckInput(itemType, rawText)) {
       parser = new GearElectronicsCyberdeckParser({ text: rawText, type: itemType, folderId });
@@ -313,6 +395,11 @@ export class ShadowrunItemsImporterParser {
 
     if (this.isElectronicsCommlinkInput(itemType, rawText)) {
       parser = new GearElectronicsCommlinkParser({ text: rawText, type: itemType, folderId });
+      return parser.parse();
+    }
+
+    if (this.isSoftwareTableInput(itemType, rawText)) {
+      parser = new GearSoftwareParser({ text: rawText, type: itemType, folderId });
       return parser.parse();
     }
 
@@ -337,6 +424,9 @@ export class ShadowrunItemsImporterParser {
     }
 
     switch (itemType) {
+      case "sin":
+        parser = new SinItemParser({ text: rawText, type: itemType, folderId });
+        break;
       case "quality":
         parser = new QualityItemParser({ text: rawText, type: itemType, folderId });
         break;
@@ -365,6 +455,21 @@ export class ShadowrunItemsImporterParser {
       case "gear.ELECTRONICS.COMMLINK":
       case "gear.CYBERWARE.COMMLINK":
         parser = new GearElectronicsCommlinkParser({ text: rawText, type: itemType, folderId });
+        break;
+      case "gear.ELECTRONICS.OPTICAL":
+        parser = new GearElectronicOpticalParser({ text: rawText, type: itemType, folderId });
+        break;
+      case "gear.ELECTRONICS.AUDIO":
+        parser = new GearElectronicAuditoryParser({ text: rawText, type: itemType, folderId });
+        break;
+      case "mod.accessory_weapon":
+        parser = new GearWeaponAccessoryParser({ text: rawText, type: itemType, folderId });
+        break;
+      case "mod.visual_enhancement":
+        parser = new GearVisualEnhancementParser({ text: rawText, type: itemType, folderId });
+        break;
+      case "mod.audio_enhancement":
+        parser = new GearAudioEnhancementParser({ text: rawText, type: itemType, folderId });
         break;
       case "gear.SOFTWARE.BASIC_PROGRAM":
       case "gear.SOFTWARE.HACKING_PROGRAM":
